@@ -1,5 +1,11 @@
 using MarriageMarkets
-using Base.Test
+using FactCheck
 
-# write your own tests here
-@test 1 == 1
+facts("Running unit tests.") do
+	context("Marriage market equilibrium.") do
+		include("test_unidim_marriage.jl")
+		include("test_multidim_marriage.jl")
+	end
+end #facts
+
+exitstatus() # for CI, makes this code fail if a test fails

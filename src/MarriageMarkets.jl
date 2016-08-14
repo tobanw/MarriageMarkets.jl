@@ -1,5 +1,7 @@
 module MarriageMarkets
 
-# package code goes here
+export MarriageMarket
+
+include("marriage.jl")
 
 end # module
