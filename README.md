@@ -12,6 +12,10 @@ As described in the manual, to [install unregistered packages][install], use `Pk
 Pkg.clone("git@github.com:tobanw/MarriageMarkets.jl.git")
 ```
 
+## Usage
+
+Look at the unit tests for examples of using the `MarriageMarket` type.
+
 ## Testing
 
 In a `julia` session, run `Pkg.test("MarriageMarkets")`.
