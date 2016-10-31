@@ -12,7 +12,7 @@ type ShimerSmith
 
 	### Exogenous objects ###
 
-	# population distributions
+	# population distributions: not normalized
 	ℓ_m::Vector
 	ℓ_f::Vector
 
@@ -26,14 +26,14 @@ type ShimerSmith
 	u_m::Vector
 	u_f::Vector
 
-	# match function
+	# match function as array
 	α::Array
 
-	# value functions of singles
-	V_m::Function
-	V_f::Function
+	# (average) value functions of singles as vectors
+	w_m::Vector
+	w_f::Vector
 
-	# marital surplus
+	# marital surplus function as array
 	S::Array
 
 
@@ -42,7 +42,7 @@ type ShimerSmith
 	"""
 		ShimerSmith(ρ, δ, r, ℓ_m, ℓ_f, h)
 
-	Construct a Shimer \& Smith (2000) marriage market model and solve for the equilibrium.
+	Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 	The equilibrium is the solution to a three-part fixed-point mapping.
 	"""
 	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64, ℓ_m::Vector, ℓ_f::Vector, h::Array)
@@ -57,10 +57,40 @@ type ShimerSmith
 			error("Number of types inconsistent with production array.")
 		end
 
-		# TODO: compute equilibrium objects via fixed point iteration
+		# Initialize objects: guesses
+		u_m = 1.0 * ℓ_m
+		u_f = 1.0 * ℓ_f
+		w_m = 0.5 * h[:,1]
+		w_f = 0.5 * h[1,:]
+		a = ones(Int64, length(ℓ_m), length(ℓ_f))
+
+		"""
+		Fixed point operator ``T(w)``.
+		"""
+		function fp_operator(A::Array)
+			# compose mappings
+			update_singles!(ρ, δ, A, ℓ_m, ℓ_f, u_m, u_f) # update u_m, u_f in place
+
+			# warn if `u` strays out of bounds
+			if any(u_m .< 0.0) || any(u_f .< 0.0)
+				warn("u negative")
+			end
+			if any(ℓ_m .< u_m) || any(ℓ_m .< u_m)
+				warn("ℓ - u negative")
+			end
+
+			update_values!(ρ, δ, r, A, h, u_m, u_f, w_m, w_f) # update w_m, w_f in place
+
+			return update_match(h, w_m, w_f)
+		end
+
+		# compute the equilibrium by fixed point iteration
+		α = compute_fixed_point(fp_operator, a, print_skip=1, verbose=2)
+
+		S = match_surplus(h, w_m, w_f)
 
 		# construct instance
-		new(ρ, δ, r, ℓ_m, ℓ_f, h, u_m, u_f, α, V_m, V_f, S)
+		new(ρ, δ, r, ℓ_m, ℓ_f, h, u_m, u_f, α, w_m, w_f, S)
 
 	end # constructor
 
@@ -82,7 +112,7 @@ type ShimerSmith
 	### Equilibrium computation ###
 
 	"""
-		update_singles!(ρ, δ, ℓ_m, ℓ_f, u_m, u_f, α)
+		update_singles!(ρ, δ, α, ℓ_m, ℓ_f, u_m, u_f)
 
 	Compute the implied singles distributions given a matching function from the
 	steady-state equilibrium conditions.
@@ -90,9 +120,11 @@ type ShimerSmith
 	For males, this equation is:
 	``∀x, δ(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy``.
 	Thus, this function solves a non-linear system of equations for `u_m` and `u_f`.
+
+	The constraints ``0 ≤ u ≤ ℓ`` are not enforced.
 	"""
 	function update_singles!(ρ::Float64, δ::Float64, α::Array,
-						  ℓ_m::Vector, ℓ_f::Vector, u_m::Vector, u_f::Vector)
+						 ℓ_m::Vector, ℓ_f::Vector, u_m::Vector, u_f::Vector)
 
 		"""
 		Vector function representing the system of equations to be solved.
@@ -106,19 +138,18 @@ type ShimerSmith
 			mres = δ * ℓ_m - μm .* (δ + ρ * (α * μf))
 			fres = δ * ℓ_f - μf .* (δ + ρ * (α' * μm))
 
-			res[:] = [vec(mres); vec(fres)] # concatenate into big vector
+			res[:] = [mres; fres] # concatenate into stacked vector
 		end # vecsys!
 
 		# initial guess of shares of singles: stacked vector of previous values
 		guess = [u_m; u_f]
 
 		# NLsolve
-		result = nlsolve(vecsys!, guess, ftol=1e-16)
+		result = nlsolve(vecsys!, guess)
 
 		u_m[:] = result.zero[1:length(u_m)]
 		u_f[:] = result.zero[length(u_m)+1:end]
 
-		return u_m, u_f
 	end # update_singles!
 
 	"""
@@ -149,30 +180,26 @@ type ShimerSmith
 			mres = ωm - θ * (αS * u_f)
 			fres = ωf - θ * (αS' * u_m)
 
-			res[:] = [vec(mres); vec(fres)] # concatenate into big vector
+			res[:] = [mres; fres] # concatenate into stacked vector
 		end # vecsys!
 
 		# initial guess of value functions: stacked vector of previous values
 		guess = [w_m; w_f]
 
 		# NLsolve
-		result = nlsolve(vecsys!, guess, ftol=1e-16)
+		result = nlsolve(vecsys!, guess)
 
 		w_m[:] = result.zero[1:length(w_m)]
 		w_f[:] = result.zero[length(w_m)+1:end]
 
-		return w_m, w_f
-	end
+	end # update_values!
 
 	"""
 	Calculate matching function α from S ≥ 0 condition.
 	"""
-	function update_match!(h::Array, w_m::Array, w_f::Array, α::Array)
-		α[:,:] = 1*(match_surplus(h, w_m, w_f) .≥ 0.0)
-		return α
+	function update_match(h::Array, w_m::Array, w_f::Array)
+		return 1*(match_surplus(h, w_m, w_f) .≥ 0.0)
 	end
-
-	# TODO: fixed point composition mapping
 
 
 	### Helper functions ###
@@ -202,6 +229,6 @@ type ShimerSmith
 		end
 
 		return S
-	end
+	end # match_surplus
 
 end # type
