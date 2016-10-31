@@ -195,10 +195,10 @@ type MarriageMarket
 
 		for i in CartesianRange(size(share))
 			share[i] = log(matches[i]) - log(sw[i.I[ndims(sm)+1:end]...])
-			end # for
+		end # for
 
-			return share
-		end # surplus
+		return share
+	end # surplus
 
 
 end # type
