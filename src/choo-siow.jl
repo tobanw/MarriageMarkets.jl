@@ -1,7 +1,7 @@
 using NLsolve
 
 
-type MarriageMarket
+type ChooSiow
 
 	# m/f types
 	mtypes::Vector{Vector} # vector of vectors of values for each of N traits
@@ -20,7 +20,7 @@ type MarriageMarket
 	wifeshare::Array # (I_1 x ... x I_N) x (J_1 x ... x J_L)
 
 	# inner constructor solves equilibrium and performs sanity checks
-	function MarriageMarket(mtypes::Vector{Vector}, ftypes::Vector{Vector},
+	function ChooSiow(mtypes::Vector{Vector}, ftypes::Vector{Vector},
 							mdist::Array, fdist::Array, surplus::Array)
 
 		# CHECK: masses of m/f must be proper probability distro
@@ -64,7 +64,7 @@ type MarriageMarket
 	end # constructor
 
 	# outer constructor that takes the production function to build the surplus array for you
-	function MarriageMarket(men::Vector{Vector}, wom::Vector{Vector},
+	function ChooSiow(men::Vector{Vector}, wom::Vector{Vector},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
 		# prodfn(man::Vector, woman::Vector)
@@ -72,28 +72,28 @@ type MarriageMarket
 		surp = generate_surplus(men, wom, mmass, fmass, prodfn)
 		
 		# create instance
-		return MarriageMarket(men, wom, mmass, fmass, surp)
+		return ChooSiow(men, wom, mmass, fmass, surp)
 	end
 
 	# outer constructor for one dimensional case
-	function MarriageMarket(men::Vector{Float64}, wom::Vector{Float64},
+	function ChooSiow(men::Vector{Float64}, wom::Vector{Float64},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
-		return MarriageMarket(Vector[men], Vector[wom], mmass, fmass, prodfn)
+		return ChooSiow(Vector[men], Vector[wom], mmass, fmass, prodfn)
 	end
 
 	# outer constructor for one dimensional case
-	function MarriageMarket(men::Vector{Real}, wom::Vector{Vector},
+	function ChooSiow(men::Vector{Real}, wom::Vector{Vector},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
-		return MarriageMarket(Vector[men], wom, mmass, fmass, prodfn)
+		return ChooSiow(Vector[men], wom, mmass, fmass, prodfn)
 	end
 
 	# outer constructor for one dimensional case
-	function MarriageMarket(men::Vector{Vector}, wom::Vector{Real},
+	function ChooSiow(men::Vector{Vector}, wom::Vector{Real},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
-		return MarriageMarket(men, Vector[wom], mmass, fmass, prodfn)
+		return ChooSiow(men, Vector[wom], mmass, fmass, prodfn)
 	end
 
 

@@ -8,11 +8,11 @@ function basicunidim(nmen, nwom, prod)
 	menmass = ones(Float64, nmen)/nmen
 	wommass = ones(Float64, nwom)/nwom
 
-	return MarriageMarket(men, wom, menmass, wommass, prod)
+	return ChooSiow(men, wom, menmass, wommass, prod)
 end
 
 
-# instantiate a MarriageMarket and verify that super/sub-modularity of production implies positive/negative assortative matching.
+# instantiate a ChooSiow and verify that super/sub-modularity of production implies positive/negative assortative matching.
 n = 5
 h(x,y) = dot(x,y)/2 # supermodular production function
 pam = basicunidim(n, n, h) # must be symmetric for the symmetry test

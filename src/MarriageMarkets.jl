@@ -1,8 +1,8 @@
 module MarriageMarkets
 
-export MarriageMarket, ShimerSmith
+export ChooSiow, ShimerSmith
 
-include("marriage.jl")
+include("choo-siow.jl")
 include("shimer-smith.jl")
 
 end # module
