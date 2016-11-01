@@ -1,6 +1,12 @@
 using NLsolve
 using QuantEcon: compute_fixed_point
 
+"""
+Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
+
+The equilibrium is the solution to a three-part fixed-point mapping.
+Without randomness, the fixed point iteration will not converge with any sex asymmetry.
+"""
 type ShimerSmith
 
 	### Parameters ###
@@ -18,6 +24,9 @@ type ShimerSmith
 
 	# production function as array
 	h::Array
+
+	# match-specific additive shock CDF
+	G::Function
 
 
 	### Endogenous equilibrium objects ###
@@ -40,12 +49,12 @@ type ShimerSmith
 	### Inner Constructor ###
 
 	"""
-		ShimerSmith(ρ, δ, r, ℓ_m, ℓ_f, h)
+		ShimerSmith(ρ, δ, r, ℓ_m, ℓ_f, h, G)
 
-	Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
-	The equilibrium is the solution to a three-part fixed-point mapping.
+	Solve the model with match-specific shocks ``z ~ G(z)``.
 	"""
-	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64, ℓ_m::Vector, ℓ_f::Vector, h::Array)
+	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64, ℓ_m::Vector, ℓ_f::Vector,
+					  h::Array, G::Function)
 
 		# CHECK: masses of m/f must be valid distro
 		if minimum(ℓ_m) < 0.0 || minimum(ℓ_f) < 0.0
@@ -62,7 +71,7 @@ type ShimerSmith
 		u_f = 1.0 * ℓ_f
 		w_m = 0.5 * h[:,1]
 		w_f = 0.5 * h[1,:]
-		a = ones(Int64, length(ℓ_m), length(ℓ_f))
+		a = ones(Float64, length(ℓ_m), length(ℓ_f))
 
 		"""
 		Fixed point operator ``T(w)``.
@@ -71,26 +80,22 @@ type ShimerSmith
 			# compose mappings
 			update_singles!(ρ, δ, A, ℓ_m, ℓ_f, u_m, u_f) # update u_m, u_f in place
 
-			# warn if `u` strays out of bounds
-			if any(u_m .< 0.0) || any(u_f .< 0.0)
-				warn("u negative")
-			end
-			if any(ℓ_m .< u_m) || any(ℓ_m .< u_m)
-				warn("ℓ - u negative")
-			end
+			# truncate if `u` strays out of bounds
+			u_m[:] = clamp.(u_m, 0.0, ℓ_m)
+			u_f[:] = clamp.(u_f, 0.0, ℓ_f)
 
 			update_values!(ρ, δ, r, A, h, u_m, u_f, w_m, w_f) # update w_m, w_f in place
 
-			return update_match(h, w_m, w_f)
+			return update_match(G, h, w_m, w_f)
 		end
 
 		# compute the equilibrium by fixed point iteration
-		α = compute_fixed_point(fp_operator, a, print_skip=1, verbose=2)
+		α = compute_fixed_point(fp_operator, a, err_tol=1e-10, print_skip=1, verbose=2)
 
 		S = match_surplus(h, w_m, w_f)
 
 		# construct instance
-		new(ρ, δ, r, ℓ_m, ℓ_f, h, u_m, u_f, α, w_m, w_f, S)
+		new(ρ, δ, r, ℓ_m, ℓ_f, h, G, u_m, u_f, α, w_m, w_f, S)
 
 	end # constructor
 
@@ -98,14 +103,27 @@ type ShimerSmith
 	### Outer Constructors ###
 
 	"""
+		ShimerSmith(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g, G)
+
+	Solve the model with match-specific shocks ``z ~ G(z)`` and production function ``g(x,y)``.
+	"""
+	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64,
+					  Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
+					  g::Function, G::Function)
+		h = prod_array(Θ_m, Θ_f, g)
+		return ShimerSmith(ρ, δ, r, ℓ_m, ℓ_f, h, G)
+	end
+
+	"""
 		ShimerSmith(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g)
 
-	Construct a Shimer & Smith (2000) marriage market model using a production function `h(x,y)`.
+	Solve the model without randomness and with production function ``g(x,y)``.
 	"""
 	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64,
 					  Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector, g::Function)
-		h = prod_array(Θ_m, Θ_f, g)
-		return ShimerSmith(ρ, δ, r, ℓ_m, ℓ_f, h)
+		# degenerate distribution: point mass of one at x=0
+		G(x) = 1.0 * (x ≥ 0.0)
+		return ShimerSmith(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g, G)
 	end
 
 
@@ -121,7 +139,8 @@ type ShimerSmith
 	``∀x, δ(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy``.
 	Thus, this function solves a non-linear system of equations for `u_m` and `u_f`.
 
-	The constraints ``0 ≤ u ≤ ℓ`` are not enforced.
+	The constraints ``0 ≤ u ≤ ℓ`` are not enforced here, but the outputs of this function
+	are truncated in the fixed point iteration loop.
 	"""
 	function update_singles!(ρ::Float64, δ::Float64, α::Array,
 						 ℓ_m::Vector, ℓ_f::Vector, u_m::Vector, u_f::Vector)
@@ -195,10 +214,12 @@ type ShimerSmith
 	end # update_values!
 
 	"""
-	Calculate matching function α from S ≥ 0 condition.
+	Calculate matching function ``α(x,y)`` from ``S ≥ 0`` condition.
+
+	When `G` is degenerate, this yields the non-random case.
 	"""
-	function update_match(h::Array, w_m::Array, w_f::Array)
-		return 1*(match_surplus(h, w_m, w_f) .≥ 0.0)
+	function update_match(G::Function, h::Array, w_m::Array, w_f::Array)
+		return 1.0 .- G.(-match_surplus(h, w_m, w_f))
 	end
 
 

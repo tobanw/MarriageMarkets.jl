@@ -2,7 +2,7 @@
 r = 0.05
 δ = 0.05
 
-function SS_uniform(ntypes, mmass, fmass, prod)
+function SS_uniform(ntypes, mmass, fmass, prod, distro)
 	
 	# types
 	Θ = Vector(linspace(0.0, 1.0, ntypes))
@@ -11,17 +11,25 @@ function SS_uniform(ntypes, mmass, fmass, prod)
 	lm = (mmass / ntypes) * ones(Float64, ntypes)
 	lf = (fmass / ntypes) * ones(Float64, ntypes)
 
-	return ShimerSmith(ρ, δ, r, Θ, Θ, lm, lf, prod)
+	return ShimerSmith(ρ, δ, r, Θ, Θ, lm, lf, prod, distro)
+end
+
+function SS_uniform(ntypes, mmass, fmass, prod)
+	distro(x) = 1.0 * (x ≥ 0.0)
+	return SS_uniform(ntypes, mmass, fmass, prod, distro)
 end
 
 h(x::Real, y::Real) = x*y
 
+"""
+Element-by-element calculation of
+
+```julia
+mres = M.δ * M.ℓ_m - M.u_m .* (M.δ + M.ρ * (M.α * M.u_f))
+fres = M.δ * M.ℓ_f - M.u_f .* (M.δ + M.ρ * (M.α' * M.u_m))
+```
+"""
 function sse_resid(M::ShimerSmith)
-	#=
-	element-by-element calculation of
-	mres = M.δ * M.ℓ_m - M.u_m .* (M.δ + M.ρ * (M.α * M.u_f))
-	fres = M.δ * M.ℓ_f - M.u_f .* (M.δ + M.ρ * (M.α' * M.u_m))
-	=#
 
 	mres = similar(M.ℓ_m)
 	fres = similar(M.ℓ_f)
@@ -35,14 +43,16 @@ function sse_resid(M::ShimerSmith)
 	return mres, fres
 end
 
+"""
+Element-by-element calculation of
+
+```julia
+mres = M.w_m - θ * (αS * M.u_f)
+fres = M.w_f - θ * (αS' * M.u_m),
+```
+where `αS = M.α .* M.S`.
+"""
 function vf_resid(M::ShimerSmith)
-	#=
-	element-by-element calculation of
-	mres = M.w_m - θ * (αS * M.u_f)
-	fres = M.w_f - θ * (αS' * M.u_m),
-	where:
-	αS = M.α .* M.S
-	=#
 
 	θ = M.ρ / (2*(M.r+M.δ)) # precompute constant
 
@@ -87,9 +97,33 @@ mvf, fvf = vf_resid(symm)
 @fact symm.u_m --> roughly(symm.u_f)
 @fact symm.α --> roughly(symm.α')
 
-#= FIXME: asymmetric case doesn't converge!
-asymm = SS_uniform(50, 50, 100, h)
 
-# sex ratio effects on value functions
-@fact (symm.w_f .≥ asymm.w_f) --> all
-=#
+# randomness cases
+using Distributions
+
+σ = 0.8
+G(x) = cdf(Normal(0.0, σ), x)
+
+# symmetric
+rsym = SS_uniform(50, 100, 100, h, G)
+
+@fact rsym.w_m --> roughly(rsym.w_f)
+@fact rsym.u_m --> roughly(rsym.u_f)
+@fact rsym.α --> roughly(rsym.α')
+
+# asymmetric
+rasym = SS_uniform(50, 50, 100, h, G)
+
+# check convergence
+rmsse, rfsse = sse_resid(rasym)
+rmvf, rfvf = vf_resid(rasym)
+
+# valid solution
+@fact rmsse --> roughly(zeros(rmsse), atol = 1e-8)
+@fact rfsse --> roughly(zeros(rfsse), atol = 1e-8)
+@fact rmvf --> roughly(zeros(rmvf), atol = 1e-8)
+@fact rfvf --> roughly(zeros(rfvf), atol = 1e-8)
+@fact rasym.α --> 1.0 .- G.(-match_surplus(rasym.h, rasym.w_m, rasym.w_f))
+
+# sex ratio effects on singles
+@fact (rsym.u_f .≤ rasym.u_f) --> all
