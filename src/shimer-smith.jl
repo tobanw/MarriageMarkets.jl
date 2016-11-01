@@ -84,13 +84,13 @@ type ShimerSmith
 		"""
 		function fp_operator(A::Array)
 			# compose mappings
-			update_singles!(ρ, δ, A, ℓ_m, ℓ_f, u_m, u_f) # update u_m, u_f in place
+			u_m[:], u_f[:] = update_singles(ρ, δ, A, ℓ_m, ℓ_f, u_m, u_f) # overwrite u_m, u_f
 
 			# truncate if `u` strays out of bounds
 			u_m[:] = clamp.(u_m, 0.0, ℓ_m)
 			u_f[:] = clamp.(u_f, 0.0, ℓ_f)
 
-			update_values!(ρ, δ, r, A, h, u_m, u_f, w_m, w_f) # update w_m, w_f in place
+			w_m[:], w_f[:] = update_values(ρ, δ, r, A, h, u_m, u_f, w_m, w_f) # overwrite w_m, w_f
 
 			return update_match(G, h, w_m, w_f)
 		end
@@ -136,7 +136,7 @@ type ShimerSmith
 	### Equilibrium computation ###
 
 	"""
-		update_singles!(ρ, δ, α, ℓ_m, ℓ_f, u_m, u_f)
+		update_singles(ρ, δ, α, ℓ_m, ℓ_f, u_m, u_f)
 
 	Compute the implied singles distributions given a matching function from the
 	steady-state equilibrium conditions.
@@ -148,7 +148,7 @@ type ShimerSmith
 	The constraints ``0 ≤ u ≤ ℓ`` are not enforced here, but the outputs of this function
 	are truncated in the fixed point iteration loop.
 	"""
-	function update_singles!(ρ::Float64, δ::Float64, α::Array,
+	function update_singles(ρ::Float64, δ::Float64, α::Array,
 						 ℓ_m::Vector, ℓ_f::Vector, u_m::Vector, u_f::Vector)
 
 		"""
@@ -172,13 +172,15 @@ type ShimerSmith
 		# NLsolve
 		result = nlsolve(vecsys!, guess)
 
-		u_m[:] = result.zero[1:length(u_m)]
-		u_f[:] = result.zero[length(u_m)+1:end]
+		um_new = result.zero[1:length(u_m)]
+		uf_new = result.zero[length(u_m)+1:end]
+
+		return um_new, uf_new
 
 	end # update_singles!
 
 	"""
-		update_values!(ρ, δ, r, α, h, u_m, u_f, w_m, w_f)
+		update_values(ρ, δ, r, α, h, u_m, u_f, w_m, w_f)
 
 	Compute the implied singlehood value functions given a matching function
 	and singles distributions.
@@ -187,7 +189,7 @@ type ShimerSmith
 	``∀x, w(x) = \frac{ρ}{2(r+δ)} ∫ (h(x,y) - w(x) - w(y)) α(x,y) u(y) dy``.
 	Thus, this function solves a non-linear system of equations for `w_m` and `w_f`.
 	"""
-	function update_values!(ρ::Float64, δ::Float64, r::Float64, α::Array, h::Array,
+	function update_values(ρ::Float64, δ::Float64, r::Float64, α::Array, h::Array,
 						 u_m::Vector, u_f::Vector, w_m::Array, w_f::Array)
 		θ = ρ / (2*(r+δ)) # precompute constant
 
@@ -214,8 +216,10 @@ type ShimerSmith
 		# NLsolve
 		result = nlsolve(vecsys!, guess)
 
-		w_m[:] = result.zero[1:length(w_m)]
-		w_f[:] = result.zero[length(w_m)+1:end]
+		wm_new = result.zero[1:length(w_m)]
+		wf_new = result.zero[length(w_m)+1:end]
+
+		return wm_new, wf_new
 
 	end # update_values!
 
