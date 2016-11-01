@@ -2,9 +2,19 @@
 
 [![Build Status](https://travis-ci.org/tobanw/MarriageMarkets.jl.svg?branch=master)](https://travis-ci.org/tobanw/MarriageMarkets.jl)
 
-The `MarriageMarkets` package currently provides two marriage market models as Julia types.
-First is the `ChooSiow` type, which computes the equilibrium of the static frictionless marriage market model from "Who Marries Whom and Why," Choo & Siow (2006).
-Second is the `ShimerSmith` type, which computes the equilibrium of the dynamic search and matching model from "Assortative Matching and Search," Shimer & Smith (2000).
+The `MarriageMarkets` package currently provides two marriage market models as Julia types:
+
+- `ChooSiow`: computes the equilibrium of the static frictionless marriage market model from "Who Marries Whom and Why," Choo & Siow (2006).
+- `ShimerSmith`: computes the equilibrium of the search and matching model from "Assortative Matching and Search," Shimer & Smith (2000).
+
+`ShimerSmith` is generalized in a few ways beyond the model presented in the paper.
+This includes a match-specific "love" shock to make the matching probabilistic.
+
+Upcoming features:
+
+- exogenous inflow of singles and outflow via death
+- type depreciation (to capture aging, for example)
+- multi-dimensional types
 
 ## Installation
 

@@ -11,38 +11,44 @@ type ShimerSmith
 
 	### Parameters ###
 
-	ρ::Float64 # arrival rate of meetings
-	δ::Float64 # arrival rate of separations
-	r::Float64 # discount rate
+	"arrival rate of meetings"
+	ρ::Float64
+	"arrival rate of separations"
+	δ::Float64
+	"discount rate"
+	r::Float64
 
 
 	### Exogenous objects ###
 
-	# population distributions: not normalized
+	"male population distribution: not normalized"
 	ℓ_m::Vector
+	"female population distribution: not normalized"
 	ℓ_f::Vector
 
-	# production function as array
+	"production function as array"
 	h::Array
 
-	# match-specific additive shock CDF
+	"CDF of match-specific additive shock"
 	G::Function
 
 
 	### Endogenous equilibrium objects ###
 
-	# masses of singles
+	"mass of single males"
 	u_m::Vector
+	"mass of single females"
 	u_f::Vector
 
-	# match function as array
+	"match function as array"
 	α::Array
 
-	# (average) value functions of singles as vectors
+	"male singlehood (average) value function as vector"
 	w_m::Vector
+	"female singlehood (average) value function as vector"
 	w_f::Vector
 
-	# marital surplus function as array
+	"marital surplus function as array"
 	S::Array
 
 

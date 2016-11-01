@@ -1,25 +1,36 @@
 using NLsolve
 
-
+"""
+Construct a Choo & Siow (2006) marriage market model and solve for the equilibrium.
+"""
 type ChooSiow
 
 	# m/f types
-	mtypes::Vector{Vector} # vector of vectors of values for each of N traits
-	ftypes::Vector{Vector} # vector of vectors of values for each of L traits
+	"vector of vectors of values for each of N male traits"
+	mtypes::Vector{Vector}
+	"vector of vectors of values for each of L female traits"
+	ftypes::Vector{Vector}
 
 	# m/f masses
-	mdist::Array # I_1 x ... x I_N
-	fdist::Array # J_1 x ... x J_L
+	"male masses: I_1 x ... x I_N"
+	mdist::Array
+	"female masses: J_1 x ... x J_L"
+	fdist::Array
 
-	surplus::Array # surplus array: (I_1 x ... x I_N) x (J_1 x ... x J_L)
+	"surplus array: (I_1 x ... x I_N) x (J_1 x ... x J_L)"
+	surplus::Array
 
 	# equilibrium
-	msingle::Array # I_1 x ... x I_N
-	fsingle::Array # J_1 x ... x J_L
-	matches::Array # (I_1 x ... x I_N) x (J_1 x ... x J_L)
-	wifeshare::Array # (I_1 x ... x I_N) x (J_1 x ... x J_L)
+	"masses of single males: I_1 x ... x I_N"
+	msingle::Array
+	"masses of single females: J_1 x ... x J_L"
+	fsingle::Array
+	"masses of married couples: (I_1 x ... x I_N) x (J_1 x ... x J_L)"
+	matches::Array
+	"wife's share of marital surplus: (I_1 x ... x I_N) x (J_1 x ... x J_L)"
+	wifeshare::Array
 
-	# inner constructor solves equilibrium and performs sanity checks
+	"Inner constructor solves equilibrium and performs sanity checks"
 	function ChooSiow(mtypes::Vector{Vector}, ftypes::Vector{Vector},
 							mdist::Array, fdist::Array, surplus::Array)
 
@@ -63,7 +74,7 @@ type ChooSiow
 		new(mtypes, ftypes, mdist, fdist, surplus, msingle, fsingle, matches, wifeshare)
 	end # constructor
 
-	# outer constructor that takes the production function to build the surplus array for you
+	"Outer constructor that takes the production function to build the surplus array"
 	function ChooSiow(men::Vector{Vector}, wom::Vector{Vector},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
@@ -75,21 +86,21 @@ type ChooSiow
 		return ChooSiow(men, wom, mmass, fmass, surp)
 	end
 
-	# outer constructor for one dimensional case
+	"Outer constructor for one dimensional case"
 	function ChooSiow(men::Vector{Float64}, wom::Vector{Float64},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
 		return ChooSiow(Vector[men], Vector[wom], mmass, fmass, prodfn)
 	end
 
-	# outer constructor for one dimensional case
+	"Outer constructor for one dimensional males case"
 	function ChooSiow(men::Vector{Real}, wom::Vector{Vector},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
 		return ChooSiow(Vector[men], wom, mmass, fmass, prodfn)
 	end
 
-	# outer constructor for one dimensional case
+	"Outer constructor for one dimensional females case"
 	function ChooSiow(men::Vector{Vector}, wom::Vector{Real},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
