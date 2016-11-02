@@ -62,41 +62,70 @@ type ShimerSmith
 	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64, ℓ_m::Vector, ℓ_f::Vector,
 					  h::Array, G::Function)
 
-		# CHECK: masses of m/f must be valid distro
+		# argument validition
 		if minimum(ℓ_m) < 0.0 || minimum(ℓ_f) < 0.0
-			error("Invalid type distribution.")
-		end
-
-		# CHECK: masses of m/f match the number of types
-		if length(ℓ_m) != size(h)[1] || length(ℓ_f) != size(h)[2]
+			error("Population masses must be non-negative.")
+		elseif length(ℓ_m) != size(h)[1] || length(ℓ_f) != size(h)[2]
 			error("Number of types inconsistent with production array.")
+		elseif G(Inf) ≠ 1.0 || G(-Inf) ≠ 0.0 ||
+			any(G.(linspace(-10.5, 9.5, 100)) .> G.(linspace(-9.5, 10.5, 100)))
+			error("G not a valid CDF.")
 		end
 
-		# Initialize objects: guesses
-		u_m = 1.0 * ℓ_m
-		u_f = 1.0 * ℓ_f
+
+		# Initialize guesses for w: overwritten and reused in the inner fixed point iteration
 		w_m = 0.5 * h[:,1]
 		w_f = 0.5 * h[1,:]
-		a = ones(Float64, length(ℓ_m), length(ℓ_f))
+
+		# Initialize matching array: overwritten and reused in the outer fixed point iteration
+		α = ones(Float64, length(ℓ_m), length(ℓ_f))
 
 		"""
-		Fixed point operator ``T(w)``.
+		Matching equilibrium fixed point operator ``T_α(α)``.
 		"""
-		function fp_operator(A::Array)
-			# compose mappings
-			u_m[:], u_f[:] = update_singles(ρ, δ, A, ℓ_m, ℓ_f, u_m, u_f) # overwrite u_m, u_f
-
-			# truncate if `u` strays out of bounds
-			u_m[:] = clamp.(u_m, 0.0, ℓ_m)
-			u_f[:] = clamp.(u_f, 0.0, ℓ_f)
-
-			w_m[:], w_f[:] = update_values(ρ, δ, r, A, h, u_m, u_f, w_m, w_f) # overwrite w_m, w_f
-
+		function fp_matching_eqm(A::Array, u_m::Vector, u_f::Vector)
+			# overwrite w_m, w_f to reuse as initial guess for nlsolve
+			w_m[:], w_f[:] = update_values(ρ, δ, r, A, h, u_m, u_f, w_m, w_f)
 			return update_match(G, h, w_m, w_f)
 		end
 
-		# compute the equilibrium by fixed point iteration
-		α = compute_fixed_point(fp_operator, a, err_tol=1e-10, print_skip=1, verbose=2)
+		"""
+		Market equilibrium fixed point operator ``T_u(u_m, u_f)``.
+		"""
+		function fp_market_eqm(u::Vector; inner_tol=1e-4)
+
+			um, uf = sex_split(u, length(ℓ_m))
+
+			# nested fixed point: overwrite α to be reused as initial guess for next call
+			α[:] = compute_fixed_point(x->fp_matching_eqm(x, um, uf), α,
+								 err_tol=inner_tol, verbose=1)
+
+			# steady state distributions
+			um_new, uf_new = update_singles(ρ, δ, α, ℓ_m, ℓ_f, um, uf)
+
+			# truncate if `u` strays out of bounds
+			if minimum([um_new; uf_new]) < 0.0
+				warn("u negative: truncating...")
+			elseif minimum([ℓ_m .- um_new; ℓ_f .- uf_new]) < 0.0
+				warn("u > ℓ: truncating...")
+			end
+			um_new[:] = clamp.(um_new, 0.0, ℓ_m)
+			uf_new[:] = clamp.(uf_new, 0.0, ℓ_f)
+
+			return [um_new; uf_new]
+		end
+
+		# fast rough compututation of equilibrium by fixed point iteration
+		u_fp0 = compute_fixed_point(fp_market_eqm, 0.1*[ℓ_m; ℓ_f],
+							  print_skip=1, verbose=2) # initial guess u = 0.1*ℓ
+
+		um_0, uf_0 = sex_split(u_fp0, length(ℓ_m))
+
+		# touch up with high precision fixed point solution
+		u_fp = compute_fixed_point(x->fp_market_eqm(x, inner_tol=1e-10), [um_0; uf_0],
+							 err_tol=1e-10, print_skip=5, verbose=1)
+		
+		u_m, u_f = sex_split(u_fp, length(ℓ_m))
 
 		S = match_surplus(h, w_m, w_f)
 
@@ -127,8 +156,8 @@ type ShimerSmith
 	"""
 	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64,
 					  Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector, g::Function)
-		# degenerate distribution: point mass of one at x=0
-		G(x) = 1.0 * (x ≥ 0.0)
+		# degenerate distribution: point mass of one at x=0, but no marriage if indifferent
+		G(x) = Float64(x > 0.0) # bool as float
 		return ShimerSmith(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g, G)
 	end
 
@@ -155,9 +184,7 @@ type ShimerSmith
 		Vector function representing the system of equations to be solved.
 		"""
 		function vecsys!(μ::Vector, res::Vector) # vec'd
-			# split by sex
-			μm = μ[1:length(u_m)]
-			μf = μ[length(u_m)+1:end]
+			μm, μf = sex_split(μ, length(ℓ_m))
 
 			# compute residuals of non-linear system
 			mres = δ * ℓ_m - μm .* (δ + ρ * (α * μf))
@@ -172,12 +199,11 @@ type ShimerSmith
 		# NLsolve
 		result = nlsolve(vecsys!, guess)
 
-		um_new = result.zero[1:length(u_m)]
-		uf_new = result.zero[length(u_m)+1:end]
+		um_new, uf_new = sex_split(result.zero, length(ℓ_m))
 
 		return um_new, uf_new
 
-	end # update_singles!
+	end # update_singles
 
 	"""
 		update_values(ρ, δ, r, α, h, u_m, u_f, w_m, w_f)
@@ -197,9 +223,7 @@ type ShimerSmith
 		Vector function representing the system of equations to be solved.
 		"""
 		function vecsys!(ω::Vector, res::Vector) # vec'd
-			# split by sex
-			ωm = ω[1:length(w_m)]
-			ωf = ω[length(w_m)+1:end]
+			ωm, ωf = sex_split(ω, length(w_m))
 
 			αS = α .* match_surplus(h, ωm, ωf)
 
@@ -216,12 +240,11 @@ type ShimerSmith
 		# NLsolve
 		result = nlsolve(vecsys!, guess)
 
-		wm_new = result.zero[1:length(w_m)]
-		wf_new = result.zero[length(w_m)+1:end]
+		wm_new, wf_new = sex_split(result.zero, length(w_m))
 
 		return wm_new, wf_new
 
-	end # update_values!
+	end # update_values
 
 	"""
 	Calculate matching function ``α(x,y)`` from ``S ≥ 0`` condition.
@@ -235,9 +258,7 @@ type ShimerSmith
 
 	### Helper functions ###
 
-	"""
-	Construct production array from function.
-	"""
+	"Construct production array from function."
 	function prod_array(mtypes::Vector, ftypes::Vector, prodfn::Function)
 		h = Array{Float64}(length(mtypes), length(ftypes))
 
@@ -249,9 +270,7 @@ type ShimerSmith
 
 	end # prod_array
 
-	"""
-	Construct match surplus array from value functions.
-	"""
+	"Construct match surplus array from value functions."
 	function match_surplus(h::Array, w_m::Vector, w_f::Vector)
 		S = similar(h)
 
@@ -261,5 +280,12 @@ type ShimerSmith
 
 		return S
 	end # match_surplus
+
+	"Split vector `v` into male/female pieces, where `idx` is number of male types."
+	function sex_split(v::Vector, idx::Int)
+		vm = v[1:idx]
+		vf = v[idx+1:end]
+		return vm, vf
+	end
 
 end # type

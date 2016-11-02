@@ -84,13 +84,14 @@ symm = SS_uniform(50, 100, 100, h)
 # check convergence
 msse, fsse = sse_resid(symm)
 mvf, fvf = vf_resid(symm)
+α_err = symm.α .- convert(Array{Float64}, (match_surplus(symm.h, symm.w_m, symm.w_f) .> 0.0))
 
 # valid solution
-@fact msse --> roughly(zeros(msse), atol = 1e-8)
-@fact fsse --> roughly(zeros(fsse), atol = 1e-8)
-@fact mvf --> roughly(zeros(mvf), atol = 1e-8)
-@fact fvf --> roughly(zeros(fvf), atol = 1e-8)
-@fact symm.α --> 1*(match_surplus(symm.h, symm.w_m, symm.w_f) .≥ 0.0)
+@fact msse --> roughly(zeros(msse), atol = 1e-7)
+@fact fsse --> roughly(zeros(fsse), atol = 1e-7)
+@fact mvf --> roughly(zeros(mvf), atol = 1e-7)
+@fact fvf --> roughly(zeros(fvf), atol = 1e-7)
+@fact α_err --> zeros(α_err)
 
 # symmetry
 @fact symm.w_m --> roughly(symm.w_f)
@@ -119,10 +120,10 @@ rmsse, rfsse = sse_resid(rasym)
 rmvf, rfvf = vf_resid(rasym)
 
 # valid solution
-@fact rmsse --> roughly(zeros(rmsse), atol = 1e-8)
-@fact rfsse --> roughly(zeros(rfsse), atol = 1e-8)
-@fact rmvf --> roughly(zeros(rmvf), atol = 1e-8)
-@fact rfvf --> roughly(zeros(rfvf), atol = 1e-8)
+@fact rmsse --> roughly(zeros(rmsse), atol = 1e-7)
+@fact rfsse --> roughly(zeros(rfsse), atol = 1e-7)
+@fact rmvf --> roughly(zeros(rmvf), atol = 1e-7)
+@fact rfvf --> roughly(zeros(rfvf), atol = 1e-7)
 @fact rasym.α --> 1.0 .- G.(-match_surplus(rasym.h, rasym.w_m, rasym.w_f))
 
 # sex ratio effects on singles
