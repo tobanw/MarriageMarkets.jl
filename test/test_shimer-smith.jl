@@ -15,7 +15,7 @@ function SS_uniform(ntypes, mmass, fmass, prod, distro)
 end
 
 function SS_uniform(ntypes, mmass, fmass, prod)
-	distro(x) = 1.0 * (x ≥ 0.0)
+	distro(x) = Float64(x ≥ 0.0)
 	return SS_uniform(ntypes, mmass, fmass, prod, distro)
 end
 
