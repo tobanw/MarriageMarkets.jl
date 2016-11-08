@@ -90,6 +90,8 @@ type ShimerSmith
 			const INFLOW = false
 		end
 
+		const AGING = false # TODO
+
 
 		### Argument Validation ###
 
@@ -124,15 +126,34 @@ type ShimerSmith
 		end
 
 
-		### Steady-state Equilibrium Conditions ###
+		### Compute Constants and Values ###
+
+		const θ = ρ / (2*(r+δ)) # TODO: incorporate death rate
+
+		if INFLOW
+			# population size given directly by inflow and outflow rates
+			ℓ_m = γ_m ./ ψ_m
+			ℓ_f = γ_f ./ ψ_f
+
+			# vectors of marriage exit rates 
+			const θ_2m = δ .+ ψ_m
+			const θ_2f = δ .+ ψ_f
+		else
+			# vectors of marriage exit rates 
+			const θ_2m = δ .* ones(ℓ_m)
+			const θ_2f = δ .* ones(ℓ_f)
+		end
+
+
+		### Steady-State Equilibrium Conditions ###
 
 		"""
 		Update population distributions: basic Shimer-Smith model.
 
 		Compute the implied singles distributions given a matching function.
-		For males, this equation is:
+		For males, the steady state condition equating flows into and out of marriage is:
 
-		``∀x, δ(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy``.
+		``∀x, (δ + ψ(x))(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy``.
 
 		Thus, this function solves a non-linear system of equations for `u_m` and `u_f`.
 		The constraints ``0 ≤ u ≤ ℓ`` are not enforced here, but the outputs of this function
@@ -142,20 +163,20 @@ type ShimerSmith
 			um, uf = sex_split(u, n_m)
 
 			# compute residuals of non-linear system
-			mres = δ * ℓ_m - um .* (δ + ρ * (α * uf))
-			fres = δ * ℓ_f - uf .* (δ + ρ * (α' * um))
+			mres = θ_2m .* ℓ_m - um .* (θ_2m .+ ρ .* (α * uf))
+			fres = θ_2f .* ℓ_f - uf .* (θ_2f .+ ρ .* (α' * um))
 
 			res[:] = [mres; fres] # concatenate into stacked vector
 		end # steadystate_base!
 
-		"Update population distributions: basic inflow/outflow model."
-		function steadystate_inflow!(u::Vector, res::Vector) # vec'd
+		"Update population distributions: aging model."
+		function steadystate_aging!(u::Vector, res::Vector) # vec'd
 			um, uf = sex_split(u, n_m)
 
 			#TODO: add actual conditions
 			# compute residuals of non-linear system
-			mres = δ * ℓ_m - um .* (δ + ρ * (α * uf))
-			fres = δ * ℓ_f - uf .* (δ + ρ * (α' * um))
+			mres = θ_2m .* ℓ_m - um .* (θ_2m .+ ρ .* (α * uf))
+			fres = θ_2f .* ℓ_f - uf .* (θ_2f .+ ρ .* (α' * um))
 
 			res[:] = [mres; fres] # concatenate into stacked vector
 		end # steadystate_inflow!
@@ -191,9 +212,9 @@ type ShimerSmith
 								 err_tol=inner_tol, verbose=1)
 
 			# steady state distributions
-			if INFLOW
-				warn("Inflow not implemented.")
-				um_new, uf_new = sex_solve(steadystate_inflow!, um, uf)
+			if AGING
+				warn("Aging model not yet implemented.")
+				um_new, uf_new = sex_solve(steadystate_aging!, um, uf)
 			else
 				um_new, uf_new = sex_solve(steadystate_base!, um, uf)
 			end
@@ -272,8 +293,8 @@ type ShimerSmith
 	"""
 	function update_values(ρ::Float64, δ::Float64, r::Float64, α::Array, h::Array,
 						 u_m::Vector, u_f::Vector, w_m::Array, w_f::Array)
-		θ = ρ / (2*(r+δ)) # precompute constant
 
+		θ = ρ / (2*(r+δ))
 		"""
 		Vector function representing the system of equations to be solved.
 		"""
