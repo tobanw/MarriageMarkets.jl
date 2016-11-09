@@ -90,7 +90,7 @@ mvf, fvf = vf_resid(symm)
 @fact fsse --> roughly(zeros(fsse), atol = 1e-8)
 @fact mvf --> roughly(zeros(mvf), atol = 1e-8)
 @fact fvf --> roughly(zeros(fvf), atol = 1e-8)
-@fact symm.α --> 1*(match_surplus(symm.h, symm.w_m, symm.w_f) .≥ 0.0)
+@fact symm.α --> 1*(match_surplus(symm.h, symm.w_m, symm.w_f) .> 0.0)
 
 # symmetry
 @fact symm.w_m --> roughly(symm.w_f)

@@ -14,6 +14,7 @@ Upcoming features:
 
 - exogenous inflow of singles and outflow via death
 - type depreciation (to capture aging, for example)
+- endogenous divorce
 - multi-dimensional types
 
 ## Installation
@@ -23,6 +24,8 @@ As described in the manual, to [install unregistered packages][install], use `Pk
 ```julia
 Pkg.clone("git@github.com:tobanw/MarriageMarkets.jl.git")
 ```
+
+Julia version 0.5 or higher is required (install instructions [here][version]).
 
 ## Usage
 
@@ -34,3 +37,4 @@ In a Julia session, run `Pkg.test("MarriageMarkets")`.
 
 
 [install]: http://docs.julialang.org/en/release-0.5/manual/packages/#installing-unregistered-packages
+[version]:http://julialang.org/downloads/platform.html
