@@ -17,7 +17,7 @@ Upcoming features:
 """
 module MarriageMarkets
 
-export ChooSiow, ShimerSmith
+export ChooSiow, ShimerSmith, SearchClosed, SearchInflow
 
 include("choo-siow.jl")
 include("shimer-smith.jl")
