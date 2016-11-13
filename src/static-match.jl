@@ -3,7 +3,7 @@ using NLsolve
 """
 Construct a Choo & Siow (2006) marriage market model and solve for the equilibrium.
 """
-type ChooSiow
+type StaticMatch
 
 	# m/f types
 	"vector of vectors of values for each of N male traits"
@@ -31,7 +31,7 @@ type ChooSiow
 	wifeshare::Array
 
 	"Inner constructor solves equilibrium and performs sanity checks"
-	function ChooSiow(mtypes::Vector{Vector}, ftypes::Vector{Vector},
+	function StaticMatch(mtypes::Vector{Vector}, ftypes::Vector{Vector},
 							mdist::Array, fdist::Array, surplus::Array)
 
 		# CHECK: masses of m/f must be proper probability distro
@@ -75,7 +75,7 @@ type ChooSiow
 	end # constructor
 
 	"Outer constructor that takes the production function to build the surplus array"
-	function ChooSiow(men::Vector{Vector}, wom::Vector{Vector},
+	function StaticMatch(men::Vector{Vector}, wom::Vector{Vector},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
 		# prodfn(man::Vector, woman::Vector)
@@ -83,28 +83,28 @@ type ChooSiow
 		surp = generate_surplus(men, wom, mmass, fmass, prodfn)
 		
 		# create instance
-		return ChooSiow(men, wom, mmass, fmass, surp)
+		return StaticMatch(men, wom, mmass, fmass, surp)
 	end
 
 	"Outer constructor for one dimensional case"
-	function ChooSiow(men::Vector{Float64}, wom::Vector{Float64},
+	function StaticMatch(men::Vector, wom::Vector,
 							mmass::Array, fmass::Array,
 							prodfn::Function)
-		return ChooSiow(Vector[men], Vector[wom], mmass, fmass, prodfn)
+		return StaticMatch(Vector[men], Vector[wom], mmass, fmass, prodfn)
 	end
 
 	"Outer constructor for one dimensional males case"
-	function ChooSiow(men::Vector{Real}, wom::Vector{Vector},
+	function StaticMatch(men::Vector, wom::Vector{Vector},
 							mmass::Array, fmass::Array,
 							prodfn::Function)
-		return ChooSiow(Vector[men], wom, mmass, fmass, prodfn)
+		return StaticMatch(Vector[men], wom, mmass, fmass, prodfn)
 	end
 
 	"Outer constructor for one dimensional females case"
-	function ChooSiow(men::Vector{Vector}, wom::Vector{Real},
+	function StaticMatch(men::Vector{Vector}, wom::Vector,
 							mmass::Array, fmass::Array,
 							prodfn::Function)
-		return ChooSiow(men, Vector[wom], mmass, fmass, prodfn)
+		return StaticMatch(men, Vector[wom], mmass, fmass, prodfn)
 	end
 
 

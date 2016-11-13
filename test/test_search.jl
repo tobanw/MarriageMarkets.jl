@@ -44,7 +44,7 @@ mres = (M.δ .+ M.ψ_m) .* M.ℓ_m - M.u_m .* ((M.δ .+ M.ψ_m) + M.ρ * (M.α *
 fres = (M.δ .+ M.ψ_f) * M.ℓ_f - M.u_f .* ((M.δ .+ M.ψ_f) + M.ρ * (M.α' * M.u_m))
 ```
 """
-function sse_resid(M::ShimerSmith)
+function sse_resid(M::SearchMatch)
 
 	mres = similar(M.ℓ_m)
 	fres = similar(M.ℓ_f)
@@ -68,7 +68,7 @@ fres = 2*M.w_f - ρ * (αS' * M.u_m),
 ```
 where `αS = M.α .* M.S`.
 """
-function vf_resid(M::ShimerSmith)
+function vf_resid(M::SearchMatch)
 
 	mres = similar(M.w_m)
 	fres = similar(M.w_f)
@@ -82,7 +82,7 @@ function vf_resid(M::ShimerSmith)
 	return mres, fres
 end
 
-function match_surplus(M::ShimerSmith)
+function match_surplus(M::SearchMatch)
 	S = similar(M.h)
 
 	for i in 1:length(M.w_m), j in 1:length(M.w_f)

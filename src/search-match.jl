@@ -2,7 +2,7 @@ using NLsolve
 using QuantEcon: compute_fixed_point
 
 """
-		ShimerSmith(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+		SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 
@@ -15,16 +15,16 @@ Model selection depends which arguments are provided:
 	* ℓ_m, ℓ_f exogenous: population cycles between singlehood and marriage, no birth/death
 	* Death rates `ψ_m, ψ_f`, inflows `γ_m, γ_f`: population distributions ℓ_m, ℓ_f endogenous
 """
-type ShimerSmith
+type SearchMatch
 
 	### Parameters ###
 
 	"arrival rate of meetings"
-	ρ::Float64
+	ρ::Real
 	"arrival rate of separations"
-	δ::Float64
+	δ::Real
 	"discount rate"
-	r::Float64
+	r::Real
 
 	### Exogenous objects ###
 
@@ -75,7 +75,7 @@ type ShimerSmith
 	This is not meant to be called directly -- instead, outer constructors should call this
 	constructor with a full set of arguments, using zero (or identity) values for unwanted components.
 	"""
-	function ShimerSmith(ρ::Float64, δ::Float64, r::Float64,
+	function SearchMatch(ρ::Real, δ::Real, r::Real,
 					  γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
 					  h::Array, G::Function)
 
@@ -296,10 +296,10 @@ end # type
 
 ### Outer Constructors ###
 
-# Recall inner constructor: ShimerSmith(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+# Recall inner constructor: SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
 
 "Closed-system model with match-specific shocks ``z ~ G(z)`` and production function ``g(x,y)``."
-function SearchClosed(ρ::Float64, δ::Float64, r::Float64,
+function SearchClosed(ρ::Real, δ::Real, r::Real,
 					 Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
 					 g::Function, G::Function)
 	# irrelevant arguments to pass as zeros
@@ -309,29 +309,28 @@ function SearchClosed(ρ::Float64, δ::Float64, r::Float64,
 	γ_f = zeros(ℓ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return ShimerSmith(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+	return SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
 end
 
 "Closed-system model without randomness and with production function ``g(x,y)``."
-function SearchClosed(ρ::Float64, δ::Float64, r::Float64,
+function SearchClosed(ρ::Real, δ::Real, r::Real,
 					 Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector, g::Function)
 	# degenerate distribution: point mass of one at x=0, but no marriage if indifferent
-	G(x::Float64) = Float64(x ≥ 0.0) # bool as float
+	G(x::Real) = Float64(x ≥ 0.0) # bool as float
 
-	return ShimerSmith(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g, G)
+	return SearchClosed(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g, G)
 end
 
 "Inflow model with match-specific shocks ``z ~ G(z)`` and production function ``g(x,y)``."
-function SearchInflow(ρ::Float64, δ::Float64, r::Float64,
+function SearchInflow(ρ::Real, δ::Real, r::Real,
 					  Θ_m::Vector, Θ_f::Vector, γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector,
 					  g::Function, G::Function)
 	# irrelevant arguments to pass as zeros
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
-
 	h = prod_array(Θ_m, Θ_f, g)
-	return ShimerSmith(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+	return SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
 end
 
 
