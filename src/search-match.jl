@@ -1,30 +1,35 @@
 using NLsolve
 using QuantEcon: compute_fixed_point
+using Distributions
+
+const STDNORMAL = Normal()
 
 """
-		SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 
 The equilibrium is the solution to a three-part fixed-point mapping.
 
 Model selection depends which arguments are provided:
-* Match-specific additive shocks ``z ~ G(z)``
+* Match-specific additive shocks ``z ~ N(0, σ)``
 	* Note: some randomness is required for the fixed point iteration to converge with sex asymmetry
 * Closed system or inflow/outflow:
-	* ℓ_m, ℓ_f exogenous: population cycles between singlehood and marriage, no birth/death
-	* Death rates `ψ_m, ψ_f`, inflows `γ_m, γ_f`: population distributions ℓ_m, ℓ_f endogenous
+	* `ℓ_m, ℓ_f` exogenous: population cycles between singlehood and marriage, no birth/death
+	* Death rates `ψ_m, ψ_f`, inflows `γ_m, γ_f`: population distributions `ℓ_m, ℓ_f` endogenous
 """
-type SearchMatch
+immutable SearchMatch # object fields cannot be modified
 
 	### Parameters ###
 
 	"arrival rate of meetings"
 	ρ::Real
-	"arrival rate of separations"
+	"arrival rate of separation shocks"
 	δ::Real
 	"discount rate"
 	r::Real
+	"standard deviation of normally distributed match-specific additive shock"
+	σ::Real
 
 	### Exogenous objects ###
 
@@ -37,12 +42,10 @@ type SearchMatch
 	ψ_m::Vector
 	"arrival rates of female death by type"
 	ψ_f::Vector
-	
+
 	"production function as array"
 	h::Array
 
-	"CDF of match-specific additive shock"
-	G::Function
 
 	### Endogenous equilibrium objects ###
 
@@ -75,19 +78,26 @@ type SearchMatch
 	This is not meant to be called directly -- instead, outer constructors should call this
 	constructor with a full set of arguments, using zero (or identity) values for unwanted components.
 	"""
-	function SearchMatch(ρ::Real, δ::Real, r::Real,
-					  γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
-					  h::Array, G::Function)
+	#TODO: change G to σ
+	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real,
+                      γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector,
+                      ℓ_m::Vector, ℓ_f::Vector, h::Array)
 
 		### Model Selection ###
 
 		const n_m = length(γ_m)
 		const n_f = length(γ_f)
 
-		if sum(ψ_m) > 0.0 && sum(ψ_f) > 0.0 # inflow/outflow model: if death rates provided
+		if sum(ψ_m) > 0 && sum(ψ_f) > 0 # inflow/outflow model: if death rates provided
 			const INFLOW = true
 		else
 			const INFLOW = false
+		end
+
+		if σ == 0
+			const STOCH = false
+		else
+			const STOCH = true
 		end
 
 		const AGING = false # TODO
@@ -96,33 +106,34 @@ type SearchMatch
 		### Argument Validation ###
 
 		if INFLOW # birth/death model
-			if any(ℓ_m .> 0.0) || any(ℓ_f .> 0.0)
+			if any(ℓ_m .> 0) || any(ℓ_f .> 0)
 				error("Death rate ψ provided: population distributions ℓ_m, ℓ_f are endogenous.")
-			elseif sum(γ_m) ≤ 0.0 || sum(γ_f) ≤ 0.0
+			elseif sum(γ_m) ≤ 0 || sum(γ_f) ≤ 0
 				error("Total population inflow must be positive.")
-			elseif any(ψ_m .< 0.0) || any(ψ_f .< 0.0)
+			elseif any(ψ_m .< 0) || any(ψ_f .< 0)
 				error("Death rates must be non-negative.")
 			end
 		else # closed system: population exogenous
-			if sum(ℓ_m) ≤ 0.0 || sum(ℓ_f) ≤ 0.0
+			if sum(ℓ_m) ≤ 0 || sum(ℓ_f) ≤ 0
 				error("No death: population must be positive.")
-			elseif any(ℓ_m .< 0.0) || any(ℓ_f .< 0.0)
+			elseif any(ℓ_m .< 0) || any(ℓ_f .< 0)
 				error("Population masses must be non-negative.")
 			elseif length(ℓ_m) != size(h)[1] || length(ℓ_f) != size(h)[2]
 				error("Number of types inconsistent with production array.")
 			end
 		end
 
+		if STOCH && σ < 0
+			error("σ must be non-negative.")
+		end
+
 		# more argument validation
-		if any([ρ, δ, r] .≤ 0.0)
+		if any([ρ, δ, r] .≤ 0)
 			error("Parameters ρ, δ, r must be positive.")
 		elseif size(h)[1] != n_m || size(h)[2] != n_f
 			error("Number of types inconsistent with production array.")
 		elseif length(ℓ_m) ≠ n_m || length(ℓ_f) ≠ n_f
 			error("Inconsistent number of types.")
-		elseif G(Inf) ≠ 1.0 || G(-Inf) ≠ 0.0 ||
-			any(G.(linspace(-10.5, 9.5, 100)) .> G.(linspace(-9.5, 10.5, 100)))
-			error("G not a valid CDF.")
 		end
 
 
@@ -134,21 +145,24 @@ type SearchMatch
 			ℓ_f = γ_f ./ ψ_f
 		end
 
+		# cdf of match-specific marital productivity shocks
+		G(x::Real) = STOCH ? cdf(Normal(0, σ), x) : Float64(x ≥ 0) # bool as float
+
 
 		### Steady-State Equilibrium Conditions ###
-
 		"""
 		Update population distributions: basic Shimer-Smith model.
 
 		Compute the implied singles distributions given a matching function.
 		For males, the steady state condition equating flows into and out of marriage is:
-
-		``∀x, (δ + ψ(x))(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy``.
-
+		```math
+		∀x, (δ + ψ(x))(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy
+		```
 		Thus, this function solves a non-linear system of equations for `u_m` and `u_f`.
 		The constraints ``0 ≤ u ≤ ℓ`` are not enforced here, but the outputs of this function
 		are truncated in the fixed point iteration loop.
 		"""
+		#TODO: update with endogenous divorce
 		function steadystate_base!(u::Vector, res::Vector) # stacked vector
 			# uses the overwritable α in the outer scope
 
@@ -181,15 +195,19 @@ type SearchMatch
 		Compute the implied average singlehood value functions given a matching function
 		and singles distributions.
 		For males, the average value function equation is:
-
-		``∀x, 2w(x) = ρ ∫ α(x,y) S(x,y) u(y) dy``, where
-		``S(x,y) = \frac{h(x,y) - w(x) - w(y)}{r+δ+ψ_m(x)+ψ_f(y)}``.
-
+		```math
+		∀x, 2w(x) = ρ ∫ α(x,y) S(x,y) u(y) dy,\\
+		S(x,y) = \frac{h(x,y) - w(x) - w(y)}{r+δ+ψ_m(x)+ψ_f(y)}
+		```
 		Thus, this function solves a non-linear system of equations for `w_m` and `w_f`,
 		the average value functions, which are defined in terms of their present-value counterparts as
-		
-		``w_m(x) = (r+ψ_m(x))W_m(x)``.
+		```math
+		w_m(x) = (r+ψ_m(x))W_m(x)
+		```
 		"""
+		#TODO: update with match shocks and endogenous divorce
+		# if STOCH: EV of shock is mean of truncated normal, exp_trunc(a,σ)
+		# else: use s without EV term
 		function valuefunc_base!(ω::Vector, res::Vector, u_m::Vector, u_f::Vector) # stacked vector
 			ωm, ωf = sex_split(ω, n_m)
 
@@ -211,7 +229,8 @@ type SearchMatch
 			return 1.0 .- G.(-match_surplus(w_m, w_f))
 		end
 
-		"Construct match surplus array from value functions."
+		"Construct match surplus array S from value functions."
+		# TODO: implement surplus for divorce
 		function match_surplus(w_m::Vector, w_f::Vector)
 			S = similar(h)
 
@@ -261,33 +280,33 @@ type SearchMatch
 			end
 
 			# truncate if `u` strays out of bounds
-			if minimum([um_new; uf_new]) < 0.0
+			if minimum([um_new; uf_new]) < 0
 				warn("u negative: truncating...")
-			elseif minimum([ℓ_m .- um_new; ℓ_f .- uf_new]) < 0.0
+			elseif minimum([ℓ_m .- um_new; ℓ_f .- uf_new]) < 0
 				warn("u > ℓ: truncating...")
 			end
-			um_new[:] = clamp.(um_new, 0.0, ℓ_m)
-			uf_new[:] = clamp.(uf_new, 0.0, ℓ_f)
+			um_new[:] = clamp.(um_new, 0, ℓ_m)
+			uf_new[:] = clamp.(uf_new, 0, ℓ_f)
 
 			return [um_new; uf_new]
 		end
 
 		# fast rough compututation of equilibrium by fixed point iteration
 		u_fp0 = compute_fixed_point(fp_market_eqm, 0.1*[ℓ_m; ℓ_f],
-							  print_skip=10, verbose=2) # initial guess u = 0.1*ℓ
+                              print_skip=10, verbose=2) # initial guess u = 0.1*ℓ
 
 		um_0, uf_0 = sex_split(u_fp0, n_m)
 
 		# touch up with high precision fixed point solution
 		u_fp = compute_fixed_point(x->fp_market_eqm(x, inner_tol=1e-5), [um_0; uf_0],
-							 err_tol=1e-8, print_skip=5, verbose=1)
+							 err_tol=1e-8, verbose=1)
 		
 		u_m, u_f = sex_split(u_fp, n_m)
 
 		S = match_surplus(w_m, w_f)
 
 		# construct instance
-		new(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, h, G, ℓ_m, ℓ_f, u_m, u_f, w_m, w_f, α, S)
+		new(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, w_m, w_f, α, S)
 
 	end # constructor
 
@@ -296,12 +315,12 @@ end # type
 
 ### Outer Constructors ###
 
-# Recall inner constructor: SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+# Recall inner constructor: SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 
-"Closed-system model with match-specific shocks ``z ~ G(z)`` and production function ``g(x,y)``."
-function SearchClosed(ρ::Real, δ::Real, r::Real,
-					 Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
-					 g::Function, G::Function)
+"Closed-system model with match-specific gaussian shocks and production function ``g(x,y)``."
+function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
+                      Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
+                      g::Function)
 	# irrelevant arguments to pass as zeros
 	ψ_m = zeros(ℓ_m)
 	ψ_f = zeros(ℓ_f)
@@ -309,28 +328,19 @@ function SearchClosed(ρ::Real, δ::Real, r::Real,
 	γ_f = zeros(ℓ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 end
 
-"Closed-system model without randomness and with production function ``g(x,y)``."
-function SearchClosed(ρ::Real, δ::Real, r::Real,
-					 Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector, g::Function)
-	# degenerate distribution: point mass of one at x=0, but no marriage if indifferent
-	G(x::Real) = Float64(x ≥ 0.0) # bool as float
-
-	return SearchClosed(ρ, δ, r, Θ_m, Θ_f, ℓ_m, ℓ_f, g, G)
-end
-
-"Inflow model with match-specific shocks ``z ~ G(z)`` and production function ``g(x,y)``."
-function SearchInflow(ρ::Real, δ::Real, r::Real,
-					  Θ_m::Vector, Θ_f::Vector, γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector,
-					  g::Function, G::Function)
+"Inflow model with match-specific gaussian shocks and production function ``g(x,y)``."
+function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
+                      Θ_m::Vector, Θ_f::Vector, γ_m::Vector, γ_f::Vector,
+                      ψ_m::Vector, ψ_f::Vector, g::Function)
 	# irrelevant arguments to pass as zeros
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return SearchMatch(ρ, δ, r, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h, G)
+	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 end
 
 
@@ -366,4 +376,9 @@ function sex_split(v::Vector, idx::Int)
 	vm = v[1:idx]
 	vf = v[idx+1:end]
 	return vm, vf
+end
+
+"Upper tail truncated normal: E[z|z>a] = σ ϕ(a/σ) / (1 - Φ(a/σ))."
+function exp_trunc(a::Real, σ::Real)
+	return σ * pdf(STDNORMAL, a/σ) / (1 - cdf(STDNORMAL, a/σ))
 end
