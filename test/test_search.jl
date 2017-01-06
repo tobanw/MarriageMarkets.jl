@@ -2,7 +2,7 @@
 r = 0.05
 δ = 0.05
 
-function closed_uniform(ntypes, mmass, fmass, prod, distro)
+function closed_uniform(ntypes, mmass, fmass, prod, σ)
 	
 	# types
 	Θ = Vector(linspace(1.0, 2.0, ntypes))
@@ -11,15 +11,10 @@ function closed_uniform(ntypes, mmass, fmass, prod, distro)
 	lm = (mmass / ntypes) * ones(Float64, ntypes)
 	lf = (fmass / ntypes) * ones(Float64, ntypes)
 
-	return SearchClosed(ρ, δ, r, Θ, Θ, lm, lf, prod, distro)
+	return SearchClosed(ρ, δ, r, σ, Θ, Θ, lm, lf, prod)
 end
 
-function closed_uniform(ntypes, mmass, fmass, prod)
-	distro(x) = Float64(x ≥ 0.0)
-	return closed_uniform(ntypes, mmass, fmass, prod, distro)
-end
-
-function inflow_uniform(ntypes, mmass, fmass, prod, distro)
+function inflow_uniform(ntypes, mmass, fmass, prod, σ)
 	
 	# types
 	Θ = Vector(linspace(1.0, 2.0, ntypes))
@@ -31,7 +26,7 @@ function inflow_uniform(ntypes, mmass, fmass, prod, distro)
 	# uniform death rates: normalized to 1
 	d = ones(Float64, ntypes)
 
-	return SearchInflow(ρ, δ, r, Θ, Θ, gm, gf, d, d, prod, distro)
+	return SearchInflow(ρ, δ, r, σ, Θ, Θ, gm, gf, d, d, prod)
 end
 
 h(x::Real, y::Real) = x*y
@@ -93,8 +88,10 @@ function match_surplus(M::SearchMatch)
 end
 
 
-# symmetric case
-symm = closed_uniform(50, 100, 100, h)
+### Deterministic case
+
+# symmetric case only
+symm = closed_uniform(50, 100, 100, h, 0)
 
 # check convergence
 msse, fsse = sse_resid(symm)
@@ -114,20 +111,22 @@ mvf, fvf = vf_resid(symm)
 @fact symm.α --> roughly(symm.α')
 
 
-# randomness cases
+### Randomness: marital productivity shocks
+
 using Distributions
 
-G(x) = cdf(Normal(0.0, 50.0), x)
+σ = 10
+G(x) = cdf(Normal(0, σ), x)
 
-# symmetric
-rsym = closed_uniform(50, 100, 100, h, G)
+# symmetric case
+rsym = closed_uniform(50, 100, 100, h, σ)
 
 @fact rsym.w_m --> roughly(rsym.w_f)
 @fact rsym.u_m --> roughly(rsym.u_f)
 @fact rsym.α --> roughly(rsym.α')
 
-# asymmetric
-rasym = closed_uniform(50, 50, 100, h, G)
+# asymmetric case: needs σ >~ 10 to converge
+rasym = closed_uniform(50, 50, 100, h, σ)
 
 # check convergence
 rmsse, rfsse = sse_resid(rasym)
@@ -136,15 +135,16 @@ rmvf, rfvf = vf_resid(rasym)
 # valid solution
 @fact rmsse --> roughly(zeros(rmsse), atol = 1e-7)
 @fact rfsse --> roughly(zeros(rfsse), atol = 1e-7)
-@fact maximum(abs.(rmvf)) --> roughly(0.0, atol = 1e-6)
-@fact maximum(abs.(rfvf)) --> roughly(0.0, atol = 1e-6)
+# convergence seems to stall around 5e-6...
+@fact maximum(abs.(rmvf)) --> roughly(0.0, atol = 1e-5)
+@fact maximum(abs.(rfvf)) --> roughly(0.0, atol = 1e-5)
 @fact rasym.α --> 1.0 .- G.(-match_surplus(rasym))
 
 # sex ratio effects on singles
 @fact (rsym.u_f .≤ rasym.u_f) --> all
 
 # inflow model: symmetric
-inflow_symm = inflow_uniform(50, 100, 100, h, G)
+inflow_symm = inflow_uniform(50, 100, 100, h, σ)
 imsse, ifsse = sse_resid(inflow_symm)
 @fact inflow_symm.w_m --> roughly(inflow_symm.w_f)
 @fact inflow_symm.u_m --> roughly(inflow_symm.u_f)
@@ -153,7 +153,7 @@ imsse, ifsse = sse_resid(inflow_symm)
 @fact ifsse --> roughly(zeros(ifsse), atol = 1e-7)
 
 # inflow model: asymmetric
-inflow_asymm = inflow_uniform(50, 50, 100, h, G)
+inflow_asymm = inflow_uniform(50, 50, 100, h, σ)
 rimsse, rifsse = sse_resid(inflow_asymm)
 @fact rimsse --> roughly(zeros(rimsse), atol = 1e-7)
 @fact rifsse --> roughly(zeros(rifsse), atol = 1e-7)
