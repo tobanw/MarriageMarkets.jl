@@ -1,13 +1,23 @@
 using MarriageMarkets
 using FactCheck
 
-facts("Running unit tests.") do
-	context("Static model") do
+facts("Static model:") do
+	context("Unidimensional case") do
 		include("test_static_unidim.jl")
+	end
+
+	context("Multidimensional case") do
 		include("test_static_multidim.jl")
 	end
-	context("Search model") do
-		include("test_search.jl")
+end #facts
+
+facts("Search model:") do
+	context("Basic Shimer-Smith model") do
+		include("test_search_base.jl")
+	end
+
+	context("Endogenous divorce model") do
+		include("test_search_stoch.jl")
 	end
 end #facts
 
