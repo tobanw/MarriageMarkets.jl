@@ -1,5 +1,5 @@
 using NLsolve
-using QuantEcon: compute_fixed_point # using compute_fixed_point
+using QuantEcon: compute_fixed_point
 using Distributions
 
 const STDNORMAL = Normal()
@@ -8,6 +8,7 @@ const STDNORMAL = Normal()
 	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
+When match-specific shocks are included, the divorce process is endogenized as in Goussé (2014).
 
 The equilibrium is the solution to a three-part fixed-point mapping.
 
@@ -46,7 +47,6 @@ immutable SearchMatch # object fields cannot be modified
 	"production function as array"
 	h::Array
 
-
 	### Endogenous equilibrium objects ###
 
 	"male population distribution: not normalized"
@@ -80,26 +80,26 @@ immutable SearchMatch # object fields cannot be modified
 	"""
 	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real,
 	                     γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector,
-	                     ℓ_m::Vector, ℓ_f::Vector, h::Array)
+	                     ℓ_m::Vector, ℓ_f::Vector, h::Array;
+	                     verbose=false, step=0.2)
 
 		### Model Selection ###
 
-		const N_m = length(γ_m)
-		const N_f = length(γ_f)
+		N_m = length(γ_m)
+		N_f = length(γ_f)
 
 		if sum(ψ_m) > 0 && sum(ψ_f) > 0 # inflow/outflow model: if death rates provided
-			const INFLOW = true
+			INFLOW = true
 		else
-			const INFLOW = false
+			INFLOW = false
 		end
 
 		if σ == 0
-			const STOCH = false
+			STOCH = false
+			step = 1 # don't shrink fixed point iteration steps
 		else
-			const STOCH = true
+			STOCH = true
 		end
-
-		const AGING = false # TODO
 
 
 		### Argument Validation ###
@@ -147,9 +147,10 @@ immutable SearchMatch # object fields cannot be modified
 		"cdf of match-specific marital productivity shocks"
 		G(x::Real) = STOCH ? cdf(Normal(0, σ), x) : Float64(x ≥ 0) # bool as float
 
-		"μ function, using upper tail truncated normal: E[z|z>q] = σ ϕ(q/σ) / (1 - Φ(q/σ))."
+		"μ function, using inverse Mills ratio: E[z|z>q] = σ ϕ(q/σ) / (1 - Φ(q/σ))."
 		function μ(a::Real)
-			return σ * (pdf(STDNORMAL, quantile(STDNORMAL, 1-a)) - a * quantile(STDNORMAL, 1-a))
+			st = quantile(STDNORMAL, 1-a) # pre-compute -s/σ = Φ^{-1}(1-a)
+			return σ * (pdf(STDNORMAL, st) - a * st)
 		end
 
 
@@ -172,7 +173,6 @@ immutable SearchMatch # object fields cannot be modified
 		are truncated in the fixed point iteration loop.
 		"""
 		function steadystate!(u::Vector, res::Vector) # stacked vector
-			# FIXME: NLsolve fails on the stochastic case
 			# uses the overwritable α in the outer scope
 			um, uf = sex_split(u, N_m)
 
@@ -188,20 +188,7 @@ immutable SearchMatch # object fields cannot be modified
 			end
 
 			res[:] = [mres; fres] # concatenate into stacked vector
-		end # steadystate_aging!
-
-		"Update population distributions: aging model."
-		function steadystate_aging!(u::Vector, res::Vector) # stacked vector
-			# uses the overwritable α in the outer scope
-			um, uf = sex_split(u, N_m)
-
-			#TODO: add actual conditions
-			# compute residuals of non-linear system
-			mres = (δ .+ ψ_m) .* ℓ_m - um .* ((δ .+ ψ_m) .+ ρ .* (α * uf))
-			fres = (δ .+ ψ_f) .* ℓ_f - uf .* ((δ .+ ψ_f) .+ ρ .* (α' * um))
-
-			res[:] = [mres; fres] # concatenate into stacked vector
-		end # steadystate_inflow!
+		end # steadystate!
 
 		"""
 		Update singlehood value functions for deterministic case only.
@@ -215,15 +202,15 @@ immutable SearchMatch # object fields cannot be modified
 		This function solves a non-linear system of equations for the average value
 		functions, `v(x) = (r+ψ(x))V(x)`.
 		"""
-		function valuefunc_base!(ν::Vector, res::Vector, u_m::Vector, u_f::Vector) # stacked vector
-			ν_m, ν_f = sex_split(ν, N_m)
+		function valuefunc_base!(v::Vector, res::Vector, u_m::Vector, u_f::Vector, A::Array)
+			vm, vf = sex_split(v, N_m)
 
 			# precompute the fixed weights
-			αS = α .* match_surplus(ν_m, ν_f) ./ (r + δ + ψ_m .+ ψ_f')
+			αS = A .* match_surplus(vm, vf, A) ./ (r + δ + ψ_m .+ ψ_f')
 
 			# compute residuals of non-linear system
-			mres = 2*ν_m - ρ * (αS * u_f)
-			fres = 2*ν_f - ρ * (αS' * u_m)
+			mres = 2*vm - ρ * (αS * u_f)
+			fres = 2*vf - ρ * (αS' * u_m)
 
 			res[:] = [mres; fres] # concatenate into stacked vector
 		end # valuefunc_base!
@@ -233,14 +220,14 @@ immutable SearchMatch # object fields cannot be modified
 
 		When `G` is degenerate, this yields the non-random case.
 		"""
-		function update_match(v_m::Array, v_f::Array)
-			return 1 .- G.(-match_surplus(v_m, v_f)) # in deterministic case, G is indicator function
+		function update_match(v_m::Array, v_f::Array, A::Array)
+			return 1 .- G.(-match_surplus(v_m, v_f, A)) # in deterministic case, G is indicator function
 		end
 
 		"Compute average match surplus array ``s(x,y)`` from value functions."
-		function match_surplus(v_m::Vector, v_f::Vector)
-			if STOCH # calls α in outer scope
-				s = h .- v_m .- v_f' .+ δ * μ.(α) ./ (r + δ + ψ_m .+ ψ_f')
+		function match_surplus(v_m::Vector, v_f::Vector, A::Array)
+			if STOCH
+				s = h .- v_m .- v_f' .+ δ * μ.(A) ./ (r + δ + ψ_m .+ ψ_f')
 			else # deterministic Shimer-Smith model
 				s = h .- v_m .- v_f'
 			end
@@ -250,12 +237,18 @@ immutable SearchMatch # object fields cannot be modified
 
 		### Equilibrium Solver ###
 
-		# Initialize guesses for w: overwritten and reused in the inner fixed point iteration
+		# Initialize guesses for v (deterministic case only): overwritten and reused
+		#   in the inner fixed point iteration.
 		v_m = 0.5 * h[:,1]
 		v_f = 0.5 * h[1,:]
 
 		# Initialize matching array: overwritten and reused in the outer fixed point iteration
-		α = ones(Float64, N_m, N_f)
+		α = 0.5 * ones(Float64, N_m, N_f)
+
+		# rough initial guess for positive assortativity
+		#for i in 1:N_m, j in 1:N_f
+		#	α[i,j] = 1/(1 + exp(abs(i-j)/10))
+		#end
 
 		"""
 		Matching equilibrium fixed point operator ``T_α(α)``.
@@ -267,21 +260,24 @@ immutable SearchMatch # object fields cannot be modified
 		```
 		Alternatively, this could be written as an array of point-wise equations
 		and solved for α.
+
+		They keyword argument `step` controls the step size of the fixed point iteration.
+		Steps must be shrunk or else the iterates can get stuck in an oscillating pattern.
 		"""
 		function fp_matching_eqm(A::Array, u_m::Vector, u_f::Vector)
-			# FIXME: should A be unsafe_read? If not, why include?
 			# overwrite v_m, v_f to reuse as initial guess for nlsolve
-			if STOCH # calls α in outer scope
-				μα = μ.(α) ./ (r + δ + ψ_m .+ ψ_f') # precompute μ/deno
+			if STOCH
+				μα = μ.(A) ./ (r + δ + ψ_m .+ ψ_f') # precompute μ/deno
 
 				v_m[:] = 0.5*ρ * (μα * u_f)
 				v_f[:] = 0.5*ρ * (μα' * u_m)
 
 			else # need to solve non-linear system because α no longer encodes s
-				v_m[:], v_f[:] = sex_solve((x,res)->valuefunc_base!(x, res, u_m, u_f), v_m, v_f)
+				v_m[:], v_f[:] = sex_solve((x,res)->valuefunc_base!(x, res, u_m, u_f, A), v_m, v_f)
 			end
 
-			return update_match(v_m, v_f)
+			# shrink update step size
+			return (1-step) .* A .+ step * update_match(v_m, v_f, A)
 		end
 
 		"""
@@ -295,16 +291,11 @@ immutable SearchMatch # object fields cannot be modified
 
 			# nested fixed point: overwrite α to be reused as initial guess for next call
 			α[:] = compute_fixed_point(x->fp_matching_eqm(x, um, uf), α,
-			                           err_tol=inner_tol, verbose=1)
+			                           err_tol=inner_tol, verbose=verbose)
 
 			# steady state distributions
-			if AGING
-				warn("Aging model not yet implemented.")
-				um_new, uf_new = sex_solve(steadystate_aging!, um, uf)
-			else
-				# TODO: precompute αQ in outer scope?
-				um_new, uf_new = sex_solve(steadystate!, um, uf)
-			end
+			# TODO: precompute αQ in outer scope?
+			um_new, uf_new = sex_solve(steadystate!, um, uf)
 
 			# truncate if `u` strays out of bounds
 			if minimum([um_new; uf_new]) < 0
@@ -322,17 +313,17 @@ immutable SearchMatch # object fields cannot be modified
 
 		# fast rough compututation of equilibrium by fixed point iteration
 		u_fp0 = compute_fixed_point(fp_market_eqm, 0.1*[ℓ_m; ℓ_f],
-		                            print_skip=10, verbose=2) # initial guess u = 0.1*ℓ
+		                            print_skip=10, verbose=1+verbose) # initial guess u = 0.1*ℓ
 
 		um_0, uf_0 = sex_split(u_fp0, N_m)
 
 		# touch up with high precision fixed point solution
-		u_fp = compute_fixed_point(x->fp_market_eqm(x, inner_tol=1e-5), [um_0; uf_0],
-		                           err_tol=1e-8, verbose=1)
+		u_fp = compute_fixed_point(x->fp_market_eqm(x, inner_tol=1e-8), [um_0; uf_0],
+		                           err_tol=1e-8, verbose=1+verbose)
 		
 		u_m, u_f = sex_split(u_fp, N_m)
 
-		s = match_surplus(v_m, v_f)
+		s = match_surplus(v_m, v_f, α)
 
 		# construct instance
 		new(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
@@ -349,7 +340,7 @@ end # type
 "Closed-system model with match-specific gaussian shocks and production function ``g(x,y)``."
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
                       Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
-                      g::Function)
+                      g::Function; verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ψ_m = zeros(ℓ_m)
 	ψ_f = zeros(ℓ_f)
@@ -357,19 +348,20 @@ function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 	γ_f = zeros(ℓ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
+	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=verbose, step=step)
 end
 
 "Inflow model with match-specific gaussian shocks and production function ``g(x,y)``."
 function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
                       Θ_m::Vector, Θ_f::Vector, γ_m::Vector, γ_f::Vector,
-                      ψ_m::Vector, ψ_f::Vector, g::Function)
+                      ψ_m::Vector, ψ_f::Vector, g::Function;
+					  verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
+	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=verbose, step=step)
 end
 
 

@@ -72,10 +72,10 @@ lm = (mass / ntypes) * ones(Float64, ntypes)
 lf = (mass / ntypes) * ones(Float64, ntypes)
 
 # production function
-h(x::Real, y::Real) = x*y
+hsup(x::Real, y::Real) = x*y
 
 # instantiate a MarriageMarket
-symm = SearchClosed(ρ, δ, r, σ, types, types, lm, lf, h)
+symm = SearchClosed(ρ, δ, r, σ, types, types, lm, lf, hsup)
 
 
 ### Tests: basic Shimer-Smith model ###

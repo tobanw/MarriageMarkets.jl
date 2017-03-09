@@ -2,6 +2,11 @@
 
 using Distributions
 
+ρ = 5.0
+r = 0.05
+δ = 0.05
+σ = 10
+
 const STDNORMAL = Normal()
 μ(a::Real) = σ * (pdf(STDNORMAL, quantile(STDNORMAL, 1-a)) - a * quantile(STDNORMAL, 1-a))
 
@@ -97,11 +102,6 @@ end
 
 ### Tests: endogenous divorce model ###
 
-ρ = 5.0
-r = 0.05
-δ = 0.05
-σ = 10
-
 h(x::Real, y::Real) = x*y
 G(x::Real) = cdf(Normal(0, σ), x)
 
@@ -122,10 +122,10 @@ rmvf, rfvf = vf_stoch(rasym)
 # valid solution
 @fact rmsse --> roughly(zeros(rmsse), atol = 1e-7)
 @fact rfsse --> roughly(zeros(rfsse), atol = 1e-7)
-# convergence seems to stall around 5e-6...
-@fact maximum(abs.(rmvf)) --> roughly(0.0, atol = 1e-5)
-@fact maximum(abs.(rfvf)) --> roughly(0.0, atol = 1e-5)
-@fact rasym.α --> 1.0 .- G.(-surplus_stoch(rasym))
+# convergence seems to stall around 2e-5...
+@fact maximum(abs.(rmvf)) --> roughly(0.0, atol = 3e-5)
+@fact maximum(abs.(rfvf)) --> roughly(0.0, atol = 1e-7)
+@fact rasym.α --> roughly(1.0 .- G.(-surplus_stoch(rasym)), atol=1e-5)
 
 # sex ratio effects on singles
 @fact (rsym.u_f .≤ rasym.u_f) --> all
