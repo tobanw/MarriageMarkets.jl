@@ -2,10 +2,10 @@
 language: julia
 os:
   - linux
-  - osx
+# - osx # failing due to problems with official packages
 julia:
   - release
-  - nightly
+# - nightly # failing due to problems with official packages
 notifications:
   email: false
 # uncomment the following lines to override the default test script
