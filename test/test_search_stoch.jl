@@ -1,13 +1,6 @@
-### Helper functions ###
+# uses variables from setup_tests.jl
 
-using Distributions
-
-ρ = 5.0
-r = 0.05
-δ = 0.05
-σ = 10
-
-const STDNORMAL = Normal()
+G(x::Real) = cdf(Normal(0, σ), x)
 μ(a::Real) = σ * (pdf(STDNORMAL, quantile(STDNORMAL, 1-a)) - a * quantile(STDNORMAL, 1-a))
 
 function closed_uniform(ntypes, mmass, fmass, prod, σ)
@@ -102,45 +95,42 @@ end
 
 ### Tests: endogenous divorce model ###
 
-h(x::Real, y::Real) = x*y
-G(x::Real) = cdf(Normal(0, σ), x)
-
 # symmetric case
-rsym = closed_uniform(50, 100, 100, h, σ)
+rsym = closed_uniform(30, 100, 100, h, σ)
 
-@fact rsym.v_m --> roughly(rsym.v_f)
-@fact rsym.u_m --> roughly(rsym.u_f)
-@fact rsym.α --> roughly(rsym.α')
+@fact rsym.v_m --> roughly(rsym.v_f) "expected symmetry of values"
+@fact rsym.u_m --> roughly(rsym.u_f) "expected symmetry of singles"
+@fact rsym.α --> roughly(rsym.α') "expected symmetry of matching"
 
 # asymmetric case: needs σ >~ 10 to converge
-rasym = closed_uniform(50, 50, 100, h, σ)
+rasym = closed_uniform(30, 50, 100, h, σ)
 
 # check convergence
 rmsse, rfsse = sse_stoch(rasym)
 rmvf, rfvf = vf_stoch(rasym)
 
 # valid solution
-@fact rmsse --> roughly(zeros(rmsse), atol = 1e-7)
-@fact rfsse --> roughly(zeros(rfsse), atol = 1e-7)
+@fact rmsse --> roughly(zeros(rmsse), atol=1e-7) "market equilibrium: single men did not converge"
+@fact rfsse --> roughly(zeros(rfsse), atol=1e-7) "market equilibrium: single women did not converge"
 # convergence seems to stall around 2e-5...
-@fact maximum(abs.(rmvf)) --> roughly(0.0, atol = 3e-5)
-@fact maximum(abs.(rfvf)) --> roughly(0.0, atol = 1e-7)
-@fact rasym.α --> roughly(1.0 .- G.(-surplus_stoch(rasym)), atol=1e-5)
+@fact maximum(abs.(rmvf)) --> roughly(0.0, atol=3e-5) "matching equilibrium: man values did not converge"
+@fact maximum(abs.(rfvf)) --> roughly(0.0, atol=1e-7) "matching equilibrium: woman values did not converge"
+@fact rasym.α --> roughly(1.0 .- G.(-surplus_stoch(rasym)), atol=1e-5) "matching equilibrium: match probabilities α did not converge"
 
 # sex ratio effects on singles
-@fact (rsym.u_f .≤ rasym.u_f) --> all
+@fact (rsym.u_f .≤ rasym.u_f) --> all "expected more singlehood with fewer available men"
 
 # inflow model: symmetric
-inflow_symm = inflow_uniform(50, 100, 100, h, σ)
+inflow_symm = inflow_uniform(30, 100, 100, h, σ)
 imsse, ifsse = sse_stoch(inflow_symm)
-@fact inflow_symm.v_m --> roughly(inflow_symm.v_f)
-@fact inflow_symm.u_m --> roughly(inflow_symm.u_f)
-@fact inflow_symm.α --> roughly(inflow_symm.α')
-@fact imsse --> roughly(zeros(imsse), atol = 1e-7)
-@fact ifsse --> roughly(zeros(ifsse), atol = 1e-7)
+@fact inflow_symm.v_m --> roughly(inflow_symm.v_f) "expected symmetry of values"
+@fact inflow_symm.u_m --> roughly(inflow_symm.u_f) "expected symmetry of singles"
+@fact inflow_symm.α --> roughly(inflow_symm.α') "expected symmetry of matching"
+@fact imsse --> roughly(zeros(imsse), atol=1e-7) "market equilibrium: single men did not converge"
+@fact ifsse --> roughly(zeros(ifsse), atol=1e-7) "market equilibrium: single women did not converge"
 
 # inflow model: asymmetric
-inflow_asymm = inflow_uniform(50, 50, 100, h, σ)
+inflow_asymm = inflow_uniform(30, 50, 100, h, σ)
 rimsse, rifsse = sse_stoch(inflow_asymm)
-@fact rimsse --> roughly(zeros(rimsse), atol = 1e-7)
-@fact rifsse --> roughly(zeros(rifsse), atol = 1e-7)
+@fact rimsse --> roughly(zeros(rimsse), atol=1e-7) "market equilibrium: single men did not converge"
+@fact rifsse --> roughly(zeros(rifsse), atol=1e-7) "market equilibrium: single women did not converge"

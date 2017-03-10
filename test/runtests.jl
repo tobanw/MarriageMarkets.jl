@@ -1,6 +1,8 @@
 using MarriageMarkets
 using FactCheck
 
+include("setup_tests.jl") # setup common variables
+
 facts("Static model:") do
 	context("Unidimensional case") do
 		include("test_static_unidim.jl")

@@ -1,3 +1,5 @@
+# uses variables from setup_tests.jl
+
 ### Verifications: basic Shimer-Smith model ###
 
 """
@@ -57,11 +59,6 @@ end
 
 ### Setup ###
 
-ρ = 5.0
-δ = 0.05
-r = 0.05
-σ = 0
-
 # symmetric case only
 ntypes = 50
 mass = 100
@@ -71,11 +68,8 @@ types = Vector(linspace(1.0, 2.0, ntypes))
 lm = (mass / ntypes) * ones(Float64, ntypes)
 lf = (mass / ntypes) * ones(Float64, ntypes)
 
-# production function
-hsup(x::Real, y::Real) = x*y
-
 # instantiate a MarriageMarket
-symm = SearchClosed(ρ, δ, r, σ, types, types, lm, lf, hsup)
+symm = SearchClosed(ρ, δ, r, 0, types, types, lm, lf, h)
 
 
 ### Tests: basic Shimer-Smith model ###
@@ -86,13 +80,13 @@ mvf, fvf = vf_base(symm)
 α_err = symm.α .- convert(Array{Float64}, (surplus_base(symm) .> 0.0))
 
 # valid solution
-@fact msse --> roughly(zeros(msse), atol = 1e-7)
-@fact fsse --> roughly(zeros(fsse), atol = 1e-7)
-@fact mvf --> roughly(zeros(mvf), atol = 1e-7)
-@fact fvf --> roughly(zeros(fvf), atol = 1e-7)
-@fact α_err --> zeros(α_err)
+@fact msse --> roughly(zeros(msse), atol=1e-7) "market equilibrium: single men did not converge"
+@fact fsse --> roughly(zeros(fsse), atol=1e-7) "market equilibrium: single women did not converge"
+@fact mvf --> roughly(zeros(mvf), atol=1e-7) "matching equilibrium: man values did not converge"
+@fact fvf --> roughly(zeros(fvf), atol=1e-7) "matching equilibrium: woman values did not converge"
+@fact α_err --> zeros(α_err) "matching equilibrium: match probabilities α did not converge"
 
 # symmetry
-@fact symm.v_m --> roughly(symm.v_f)
-@fact symm.u_m --> roughly(symm.u_f)
-@fact symm.α --> roughly(symm.α')
+@fact symm.v_m --> roughly(symm.v_f) "expected symmetry of values"
+@fact symm.u_m --> roughly(symm.u_f) "expected symmetry of singles"
+@fact symm.α --> roughly(symm.α') "expected symmetry of matching"
