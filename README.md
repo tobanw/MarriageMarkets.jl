@@ -5,19 +5,9 @@
 The `MarriageMarkets` package currently provides two marriage market models as Julia types:
 
 - `StaticMatch`: computes the equilibrium of the static frictionless marriage market model from "Who Marries Whom and Why," Choo & Siow (2006).
-- `SearchMatch`: computes the equilibrium of variants on the search and matching model from "Assortative Matching and Search," Shimer & Smith (2000).
+- `SearchMatch`: computes the equilibrium of variants on the search and matching model from "Assortative Matching and Search" Shimer & Smith (2000) and the empirical extension in "Marriage Gains" Goussé (2014).
 
-`SearchMatch` is generalized in a few ways beyond the model presented in the paper.
-This includes:
-
-- a match-specific "love" shock to make the matching probabilistic
-- exogenous inflow of singles and outflow via death
-
-Upcoming features:
-
-- type depreciation (to capture aging, for example)
-- endogenous divorce
-- multi-dimensional types
+`SearchMatch` also allows for inflows of new singles as well as deaths.
 
 ## Installation
 
@@ -31,12 +21,10 @@ Julia version 0.5 or higher is required (install instructions [here][version]).
 
 ## Usage
 
-As `SearchMatch` supports a number of model variants, there are some convenience methods for the main model specifications.
+As `SearchMatch` supports a number of model variants, there are specific constructors for the two main types:
 
 * `SearchClosed`: closed-system where agents cycle between singlehood and marriage
 * `SearchInflow`: steady-state population is determined by exogenous inflows and type-specific death rates
-
-Look at the unit tests for more examples of using the types provided by `MarriageMarkets`.
 
 ## Example
 
@@ -48,22 +36,25 @@ using MarriageMarkets
 using Gadfly
 using Distributions
 
+ρ, δ = 500.0, 0.05 # arrival rates of meetings and divorce shocks
+r = 0.05 # discount rate
+σ = 1 # variance of Normally distributed match-specific productivity shocks
 n = 50 # number of types
-ρ, δ, r = 500, 0.05, 0.05
-Θ = Vector(linspace(0.0, 1.0, n)) # types
-h(x,y) = x*y # marital production function
+Θ = Vector(linspace(0.1, 1.0, n)) # types
+f(x,y) = x*y # marital production function
 
 γ = ones(n) ./ n # uniform inflows
 ψ = ones(n) # uniform death rates
 
-G(x) = cdf(Normal(0.0, 0.1), x) # distribution of shocks
 
-mgmkt = SearchInflow(ρ, δ, r, Θ, Θ, γ, γ, ψ, ψ, h, G)
+mgmkt = SearchInflow(ρ, δ, r, σ, Θ, Θ, γ, γ, ψ, ψ, f)
 
-plot(z=mgmkt.α, Geom.contour)
+plot(z=mgmkt.α, Geom.contour, Guide.title("Match probability conditional on meeting"))
 ```
 
-![Match function](https://cloud.githubusercontent.com/assets/667531/20243457/fca3c682-a925-11e6-9c9e-2baee549d7bb.png)
+![Match function](https://cloud.githubusercontent.com/assets/667531/23773990/8d362e86-04ef-11e7-8eb0-8d29b2b7ae96.png)
+
+The saddle shape indicates positive assortative matching, as expected, due to the supermodular production function `f(x,y) = x*y`.
 
 ## Testing
 

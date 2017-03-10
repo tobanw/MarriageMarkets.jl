@@ -5,12 +5,16 @@ using Distributions
 const STDNORMAL = Normal()
 
 """
-	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
+	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=false, step=0.2)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 When match-specific shocks are included, the divorce process is endogenized as in Goussé (2014).
 
-The equilibrium is the solution to a three-part fixed-point mapping.
+The equilibrium is the solution to a nested fixed-point mapping.
+The inner fixed-point solves for a matching equilibrium: consistent strategies given fixed
+singles densities.
+The outer fixed-point solves for a market equilibrium: singles densities that are consistent
+with strategies.
 
 Model selection depends which arguments are provided:
 * Match-specific additive shocks ``z ~ N(0, σ)`` when ``σ > 0``
@@ -75,8 +79,8 @@ immutable SearchMatch # object fields cannot be modified
 
 	"""
 	Inner constructor that accomodates several model variants, depending on the arguments provided.
-	This is not meant to be called directly -- instead, outer constructors should call this
-	constructor with a full set of arguments, using zero (or identity) values for unwanted components.
+	It is not meant to be called directly -- instead, outer constructors should call this
+	constructor with a full set of arguments, using zero values for unwanted components.
 	"""
 	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real,
 	                     γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector,
@@ -337,7 +341,11 @@ end # type
 
 # Recall inner constructor: SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 
-"Closed-system model with match-specific gaussian shocks and production function ``g(x,y)``."
+"""
+	SearchClosed(ρ, δ, r, σ, Θ_m, Θ_f, ℓ_m, ℓ_f, g; verbose=false, step=0.2)
+
+Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
+"""
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
                       Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
                       g::Function; verbose=false, step=0.2)
@@ -351,7 +359,11 @@ function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=verbose, step=step)
 end
 
-"Inflow model with match-specific gaussian shocks and production function ``g(x,y)``."
+"""
+	SearchInflow(ρ, δ, r, σ, Θ_m, Θ_f, γ_m, γ_f, ψ_m, ψ_f, g; verbose=false, step=0.2)
+
+Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
+"""
 function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
                       Θ_m::Vector, Θ_f::Vector, γ_m::Vector, γ_f::Vector,
                       ψ_m::Vector, ψ_f::Vector, g::Function;
