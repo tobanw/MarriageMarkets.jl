@@ -4,8 +4,8 @@
 
 The `MarriageMarkets` package currently provides two marriage market models as Julia types:
 
-- `StaticMatch`: computes the equilibrium of the static frictionless marriage market model from "Who Marries Whom and Why," Choo & Siow (2006).
-- `SearchMatch`: computes the equilibrium of variants on the search and matching model from "Assortative Matching and Search" Shimer & Smith (2000) and the empirical extension in "Marriage Gains" Goussé (2014).
+- `StaticMatch`: computes the equilibrium of the static frictionless marriage market model from "Who Marries Whom and Why" (Choo & Siow, 2006).
+- `SearchMatch`: computes the equilibrium of variants on the search and matching model from "Assortative Matching and Search" (Shimer & Smith, 2000) and the empirical extension in "Marriage Gains" (Goussé, 2014).
 
 `SearchMatch` also allows for inflows of new singles as well as deaths.
 

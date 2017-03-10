@@ -1,9 +1,11 @@
 using NLsolve
 
 """
+	StaticMatch(mtypes, ftypes, mdist, fdist, surplus)
+
 Construct a Choo & Siow (2006) marriage market model and solve for the equilibrium.
 """
-type StaticMatch
+immutable StaticMatch
 
 	# m/f types
 	"vector of vectors of values for each of N male traits"
@@ -32,7 +34,7 @@ type StaticMatch
 
 	"Inner constructor solves equilibrium and performs sanity checks"
 	function StaticMatch(mtypes::Vector{Vector}, ftypes::Vector{Vector},
-							mdist::Array, fdist::Array, surplus::Array)
+	                     mdist::Array, fdist::Array, surplus::Array)
 
 		# CHECK: masses of m/f must be proper probability distro
 		if minimum(mdist) < 0.0 || minimum(fdist) < 0.0
@@ -76,8 +78,7 @@ type StaticMatch
 
 	"Outer constructor that takes the production function to build the surplus array"
 	function StaticMatch(men::Vector{Vector}, wom::Vector{Vector},
-							mmass::Array, fmass::Array,
-							prodfn::Function)
+	                     mmass::Array, fmass::Array, prodfn::Function)
 		# prodfn(man::Vector, woman::Vector)
 							
 		surp = generate_surplus(men, wom, mmass, fmass, prodfn)
@@ -88,22 +89,19 @@ type StaticMatch
 
 	"Outer constructor for one dimensional case"
 	function StaticMatch(men::Vector, wom::Vector,
-							mmass::Array, fmass::Array,
-							prodfn::Function)
+	                     mmass::Array, fmass::Array, prodfn::Function)
 		return StaticMatch(Vector[men], Vector[wom], mmass, fmass, prodfn)
 	end
 
 	"Outer constructor for one dimensional males case"
 	function StaticMatch(men::Vector, wom::Vector{Vector},
-							mmass::Array, fmass::Array,
-							prodfn::Function)
+	                     mmass::Array, fmass::Array, prodfn::Function)
 		return StaticMatch(Vector[men], wom, mmass, fmass, prodfn)
 	end
 
 	"Outer constructor for one dimensional females case"
 	function StaticMatch(men::Vector{Vector}, wom::Vector,
-							mmass::Array, fmass::Array,
-							prodfn::Function)
+	                     mmass::Array, fmass::Array, prodfn::Function)
 		return StaticMatch(men, Vector[wom], mmass, fmass, prodfn)
 	end
 
@@ -123,13 +121,15 @@ type StaticMatch
 			mres = similar(μm0) # initialize output array of residuals
 			for i in CartesianRange(size(μm0)) #men are i, women are j
 				mres[i] = mmass[i] - μm0[i] - ( sfrt(μm0[i]) *
-						  sum([exp(surp[i.I..., j.I...]) * sfrt(μf0[j]) for j in CartesianRange(size(μf0))]))
+				          sum([exp(surp[i.I..., j.I...]) * sfrt(μf0[j])
+				               for j in CartesianRange(size(μf0))]))
 			end #for
 
 			fres = similar(μf0) # initialize output array of residuals
 			for j in CartesianRange(size(μf0)) #women are j, men are i
 				fres[j] = fmass[j] - μf0[j] - ( sfrt(μf0[j]) *
-						  sum([exp(surp[i.I..., j.I...]) * sfrt(μm0[i]) for i in CartesianRange(size(μm0))]))
+				          sum([exp(surp[i.I..., j.I...]) * sfrt(μm0[i])
+				               for i in CartesianRange(size(μm0))]))
 			end #for
 
 			return mres, fres
@@ -162,7 +162,7 @@ type StaticMatch
 		matches = similar(surp)
 		for i in CartesianRange(size(matches))
 			matches[i] = exp(surp[i]) * sfrt(singlemen[i.I[1:ndims(singlemen)]...] *
-											   singlewom[i.I[ndims(singlemen)+1:end]...])
+			                                 singlewom[i.I[ndims(singlemen)+1:end]...])
 		end # for
 		return matches
 	end # match_matrix
@@ -179,7 +179,7 @@ type StaticMatch
 
 
 	function generate_surplus(mtypes::Vector{Vector}, ftypes::Vector{Vector},
-						   mmass::Array, fmass::Array, prodfn::Function)
+	                          mmass::Array, fmass::Array, prodfn::Function)
 		# generate surp from prodfn and types
 		surp = Array{Float64}((size(mmass)..., size(fmass)...)...)
 		gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
