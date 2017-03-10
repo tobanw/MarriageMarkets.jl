@@ -5,7 +5,7 @@ using Distributions
 const STDNORMAL = Normal()
 
 """
-	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=false, step=0.2)
+	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 When match-specific shocks are included, the divorce process is endogenized as in Goussé (2014).
@@ -35,6 +35,8 @@ immutable SearchMatch # object fields cannot be modified
 	r::Real
 	"standard deviation of normally distributed match-specific additive shock"
 	σ::Real
+	"Nash bargaining weight of wife"
+	β::Real
 
 	### Exogenous objects ###
 
@@ -85,7 +87,7 @@ immutable SearchMatch # object fields cannot be modified
 	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real,
 	                     γ_m::Vector, γ_f::Vector, ψ_m::Vector, ψ_f::Vector,
 	                     ℓ_m::Vector, ℓ_f::Vector, h::Array;
-	                     verbose=false, step=0.2)
+	                     β=0.5, verbose=false, step=0.2)
 
 		### Model Selection ###
 
@@ -213,8 +215,8 @@ immutable SearchMatch # object fields cannot be modified
 			αS = A .* match_surplus(vm, vf, A) ./ (r + δ + ψ_m .+ ψ_f')
 
 			# compute residuals of non-linear system
-			mres = 2*vm - ρ * (αS * u_f)
-			fres = 2*vf - ρ * (αS' * u_m)
+			mres = vm - (1-β)*ρ * (αS * u_f)
+			fres = vf - β*ρ * (αS' * u_m)
 
 			res[:] = [mres; fres] # concatenate into stacked vector
 		end # valuefunc_base!
@@ -273,8 +275,8 @@ immutable SearchMatch # object fields cannot be modified
 			if STOCH
 				μα = μ.(A) ./ (r + δ + ψ_m .+ ψ_f') # precompute μ/deno
 
-				v_m[:] = 0.5*ρ * (μα * u_f)
-				v_f[:] = 0.5*ρ * (μα' * u_m)
+				v_m[:] = (1-β)*ρ * (μα * u_f)
+				v_f[:] = β*ρ * (μα' * u_m)
 
 			else # need to solve non-linear system because α no longer encodes s
 				v_m[:], v_f[:] = sex_solve((x,res)->valuefunc_base!(x, res, u_m, u_f, A), v_m, v_f)
@@ -330,7 +332,7 @@ immutable SearchMatch # object fields cannot be modified
 		s = match_surplus(v_m, v_f, α)
 
 		# construct instance
-		new(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
+		new(ρ, δ, r, σ, β, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
 
 	end # constructor
 
@@ -342,13 +344,13 @@ end # type
 # Recall inner constructor: SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
 
 """
-	SearchClosed(ρ, δ, r, σ, Θ_m, Θ_f, ℓ_m, ℓ_f, g; verbose=false, step=0.2)
+	SearchClosed(ρ, δ, r, σ, Θ_m, Θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
                       Θ_m::Vector, Θ_f::Vector, ℓ_m::Vector, ℓ_f::Vector,
-                      g::Function; verbose=false, step=0.2)
+                      g::Function; β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ψ_m = zeros(ℓ_m)
 	ψ_f = zeros(ℓ_f)
@@ -356,24 +358,24 @@ function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 	γ_f = zeros(ℓ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=verbose, step=step)
+	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchInflow(ρ, δ, r, σ, Θ_m, Θ_f, γ_m, γ_f, ψ_m, ψ_f, g; verbose=false, step=0.2)
+	SearchInflow(ρ, δ, r, σ, Θ_m, Θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
                       Θ_m::Vector, Θ_f::Vector, γ_m::Vector, γ_f::Vector,
                       ψ_m::Vector, ψ_f::Vector, g::Function;
-					  verbose=false, step=0.2)
+					  β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
 	h = prod_array(Θ_m, Θ_f, g)
-	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; verbose=verbose, step=step)
+	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=β, verbose=verbose, step=step)
 end
 
 
