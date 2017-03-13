@@ -376,7 +376,7 @@ end # type
 Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
-                      Θ_m::Array, Θ_f::Array, ℓ_m::Array, ℓ_f::Array,
+					  Θ_m::Tuple, Θ_f::Tuple, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ψ_m = zeros(ℓ_m)
@@ -384,8 +384,30 @@ function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 	γ_m = zeros(ℓ_m)
 	γ_f = zeros(ℓ_f)
 
-	h = prod_array(Θ_m, Θ_f, g)
+	# dimensions for production array
+	md = size(ℓ_m)
+	fd = size(ℓ_f)
+
+	h = prod_array(Θ_m, Θ_f, md, fd, g)
 	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=β, verbose=verbose, step=step)
+end
+
+"""
+	SearchClosed(ρ, δ, r, σ, Θ_m, Θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
+
+Method for one-dimensional types.
+"""
+function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
+					  Θ_m::Vector, Θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
+                      g::Function; β=0.5, verbose=false, step=0.2)
+	# convert type space to tuple of tuples
+	tΘ_m = (("mtype", Θ_m),)
+	tΘ_f = (("ftype", Θ_f),)
+
+	# augment production function
+	gg(x::Array, y::Array) = g(x[1], y[1])
+
+	return SearchClosed(ρ, δ, r, σ, tΘ_m, tΘ_f, ℓ_m, ℓ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 """
@@ -394,32 +416,63 @@ end
 Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
-                      Θ_m::Array, Θ_f::Array, γ_m::Array, γ_f::Array,
+					  Θ_m::Tuple, Θ_f::Tuple, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
 					  β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
-	h = prod_array(Θ_m, Θ_f, g)
+	# dimensions for production array
+	md = size(γ_m)
+	fd = size(γ_f)
+
+	h = prod_array(Θ_m, Θ_f, md, fd, g)
 	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=β, verbose=verbose, step=step)
+end
+
+"""
+	SearchInflow(ρ, δ, r, σ, Θ_m, Θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
+
+Method for one-dimensional types.
+"""
+function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
+					  Θ_m::Vector, Θ_f::Vector, γ_m::Array, γ_f::Array,
+                      ψ_m::Array, ψ_f::Array, g::Function;
+					  β=0.5, verbose=false, step=0.2)
+	# convert type space to tuple of tuples
+	tΘ_m = (("mtype", Θ_m),)
+	tΘ_f = (("ftype", Θ_f),)
+
+	# augment production function
+	gg(x::Array, y::Array) = g(x[1], y[1])
+
+	return SearchInflow(ρ, δ, r, σ, tΘ_m, tΘ_f, γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 
 ### Helper functions ###
 
 "Construct production array from function."
-#TODO
-function prod_array(mtypes::Vector, ftypes::Vector, prodfn::Function)
-	h = Array{Float64}(length(mtypes), length(ftypes))
+function prod_array(mtypes::Tuple, ftypes::Tuple, mdims::Tuple, fdims::Tuple, prodfn::Function)
+	h = Array{Float64}((mdims...,fdims...)...)
+	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
+	lady = Vector{Float64}(length(ftypes))
 
-	for (i,x) in enumerate(mtypes), (j,y) in enumerate(ftypes)
-		h[i,j] = prodfn(x, y)
+	for coord in CartesianRange(size(h))
+		for trt in 1:length(mtypes) # loop through traits in coord
+			gent[trt] = mtypes[trt][2][coord[trt]]
+		end
+		for trt in 1:length(ftypes) # loop through traits in coord
+			lady[trt] = ftypes[trt][2][coord[trt+length(mtypes)]]
+		end
+		h[coord] = prodfn(gent, lady)
 	end
 
 	return h
 
 end # prod_array
+
 
 "Wrapper for nlsolve that handles the concatenation and splitting of sex vectors."
 #TODO
