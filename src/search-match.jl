@@ -94,7 +94,6 @@ immutable SearchMatch # object fields cannot be modified
 		D_m = size(γ_m)
 		D_f = size(γ_f)
 
-		# TODO: delete if unused
 		N_m = prod(D_m)
 		N_f = prod(D_f)
 
@@ -183,6 +182,7 @@ immutable SearchMatch # object fields cannot be modified
 		"""
 		function steadystate!(u::Vector, res::Vector)# stacked vector
 			# uses the overwritable α in the outer scope
+
 			um, uf = sex_split(u, D_m, D_f) # reconstitute arrays from stacked vector
 
 			# initialize arrays
@@ -224,24 +224,34 @@ immutable SearchMatch # object fields cannot be modified
 		Compute the implied singlehood value functions given a matching function
 		and singles distributions.
 		```math
-		∀x, v(x) = β ρ ∫ α(x,y) S(x,y) u(y) dy``,\\
-		S(x,y) = \frac{h(x,y) - v(x) - v(y)}{r+δ+ψ_m(x)+ψ_f(y)}
+		∀x, v(x) = β ρ ∫ α(x,y) S(x,y) u(y) dy
 		```
 		This function solves a non-linear system of equations for the average value
 		functions, `v(x) = (r+ψ(x))V(x)`.
 		"""
-		#TODO
 		function valuefunc_base!(v::Vector, res::Vector, u_m::Array, u_f::Array, A::Array)
-			vm, vf = sex_split(v, D_m, D_f)
+			vm, vf = sex_split(v, D_m, D_f) # reconstitute arrays from stacked vector
+
+			# initialize arrays
+			mres = similar(ℓ_m)
+			fres = similar(ℓ_f)
 
 			# precompute the fixed weights
-			αS = A .* match_surplus(vm, vf, A) ./ (r + δ + ψ_m .+ ψ_f')
+			αs = A .* match_surplus(vm, vf, A)
 
 			# compute residuals of non-linear system
-			mres = vm - (1-β)*ρ * (αS * u_f)
-			fres = vf - β*ρ * (αS' * u_m)
+			for i in CartesianRange(D_m)
+				mres[i] = vm[i] - (1-β) * ρ *
+				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_f[j]
+				                for j in CartesianRange(D_f)])
+			end
+			for j in CartesianRange(D_f)
+				fres[j] = vf[j] - β*ρ *
+				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_m[i]
+			                    for i in CartesianRange(D_m)])
+			end
 
-			res[:] = [mres; fres] # concatenate into stacked vector
+			res[:] = [vec(mres); vec(fres)] # concatenate into stacked vector
 		end # valuefunc_base!
 
 		"""
