@@ -224,7 +224,7 @@ immutable SearchMatch # object fields cannot be modified
 		Compute the implied singlehood value functions given a matching function
 		and singles distributions.
 		```math
-		∀x, v(x) = β ρ ∫ α(x,y) S(x,y) u(y) dy
+		∀x, v(x) = (1-β) ρ ∫ α(x,y) S(x,y) u(y) dy
 		```
 		This function solves a non-linear system of equations for the average value
 		functions, `v(x) = (r+ψ(x))V(x)`.
@@ -246,9 +246,9 @@ immutable SearchMatch # object fields cannot be modified
 				                for j in CartesianRange(D_f)])
 			end
 			for j in CartesianRange(D_f)
-				fres[j] = vf[j] - β*ρ *
+				fres[j] = vf[j] - β * ρ *
 				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_m[i]
-			                    for i in CartesianRange(D_m)])
+				                for i in CartesianRange(D_m)])
 			end
 
 			res[:] = [vec(mres); vec(fres)] # concatenate into stacked vector
@@ -271,7 +271,7 @@ immutable SearchMatch # object fields cannot be modified
 				j = coord.I[length(D_m)+1:end]
 				if STOCH
 					s[coord] = h[coord] - v_m[i...] - v_f[j...] +
-							   δ * μ(A[coord]) / (r + δ + ψ_m[i...] .+ ψ_f[j...])
+					            δ * μ(A[coord]) / (r + δ + ψ_m[i...] .+ ψ_f[j...])
 				else # deterministic Shimer-Smith model
 					s[coord] = h[coord] - v_m[i...] - v_f[j...]
 				end
@@ -304,7 +304,7 @@ immutable SearchMatch # object fields cannot be modified
 		Solves value functions and match probabilities given singles distributions.
 		The value functional equations are:
 		```math
-		∀x, (r+ψ(x))V(x) = ρ/2 ∫\frac{μ(α(x,y))}{r+δ+ψ(x)+ψ(y)}u(y)dy,\\
+		∀x, (r+ψ(x))V(x) = (1-β) ρ ∫\frac{μ(α(x,y))}{r+δ+ψ(x)+ψ(y)}u(y)dy,\\
 		μ(α(x,y)) = α(x,y)(-G^{-1}(1-α(x,y)) + E[z|z > G^{-1}(1-α(x,y))])
 		```
 		Alternatively, this could be written as an array of point-wise equations
@@ -313,15 +313,20 @@ immutable SearchMatch # object fields cannot be modified
 		They keyword argument `step` controls the step size of the fixed point iteration.
 		Steps must be shrunk or else the iterates can get stuck in an oscillating pattern.
 		"""
-		#TODO
-		function fp_matching_eqm(A::Array, u_m::Vector, u_f::Vector)
+		function fp_matching_eqm(A::Array, u_m::Array, u_f::Array)
 			# overwrite v_m, v_f to reuse as initial guess for nlsolve
 			if STOCH
-				μα = μ.(A) ./ (r + δ + ψ_m .+ ψ_f') # precompute μ/deno
+				μα = μ.(A) # precompute μ term
 
-				#TODO: v as array
-				v_m[:] = (1-β)*ρ * (μα * u_f)
-				v_f[:] = β*ρ * (μα' * u_m)
+				# compute residuals of non-linear system
+				for i in CartesianRange(D_m)
+					v_m[i] = (1-β) * ρ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_f[j]
+					                          for j in CartesianRange(D_f)])
+				end
+				for j in CartesianRange(D_f)
+					v_f[j] = β * ρ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_m[i]
+					                      for i in CartesianRange(D_m)])
+				end
 
 			else # need to solve non-linear system because α no longer encodes s
 				v_m[:], v_f[:] = sex_solve((x,res)->valuefunc_base!(x, res, u_m, u_f, A), v_m, v_f)
