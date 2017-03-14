@@ -341,7 +341,6 @@ immutable SearchMatch # object fields cannot be modified
 		Solves for steady state equilibrium singles distributions, with strategies
 		forming a matching equilibrium.
 		"""
-		#TODO
 		function fp_market_eqm(u::Vector; inner_tol=1e-4)
 
 			um, uf = sex_split(u, D_m, D_f)
@@ -354,28 +353,27 @@ immutable SearchMatch # object fields cannot be modified
 			um_new, uf_new = sex_solve(steadystate!, um, uf)
 
 			# truncate if `u` strays out of bounds
-			if minimum([um_new; uf_new]) < 0
+			if minimum([vec(um_new); vec(uf_new)]) < 0
 				warn("u negative: truncating...")
-			elseif minimum([ℓ_m .- um_new; ℓ_f .- uf_new]) < 0
+			elseif minimum([vec(ℓ_m .- um_new); vec(ℓ_f .- uf_new)]) < 0
 				warn("u > ℓ: truncating...")
 			end
 			um_new[:] = clamp.(um_new, 0, ℓ_m)
 			uf_new[:] = clamp.(uf_new, 0, ℓ_f)
 
-			return [um_new; uf_new]
+			return [vec(um_new); vec(uf_new)]
 		end
 
 		# Solve fixed point
-		#TODO
 
 		# fast rough compututation of equilibrium by fixed point iteration
-		u_fp0 = compute_fixed_point(fp_market_eqm, 0.1*[ℓ_m; ℓ_f],
+		u_fp0 = compute_fixed_point(fp_market_eqm, 0.1*[vec(ℓ_m); vec(ℓ_f)],
 		                            print_skip=10, verbose=1+verbose) # initial guess u = 0.1*ℓ
 
 		um_0, uf_0 = sex_split(u_fp0, D_m, D_f)
 
 		# touch up with high precision fixed point solution
-		u_fp = compute_fixed_point(x->fp_market_eqm(x, inner_tol=1e-8), [um_0; uf_0],
+		u_fp = compute_fixed_point(x->fp_market_eqm(x, inner_tol=1e-8), [vec(um_0); vec(uf_0)],
 		                           err_tol=1e-8, verbose=1+verbose)
 		
 		u_m, u_f = sex_split(u_fp, D_m, D_f)
