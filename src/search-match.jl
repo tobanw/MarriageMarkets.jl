@@ -95,8 +95,8 @@ immutable SearchMatch # object fields cannot be modified
 		D_f = size(γ_f)
 
 		# TODO: delete if unused
-		N_m = prod(size(γ_m))
-		N_f = prod(size(γ_f))
+		N_m = prod(D_m)
+		N_f = prod(D_f)
 
 		if sum(ψ_m) > 0 && sum(ψ_f) > 0 # inflow/outflow model: if death rates provided
 			INFLOW = true
@@ -183,7 +183,7 @@ immutable SearchMatch # object fields cannot be modified
 		"""
 		function steadystate!(u::Vector, res::Vector)# stacked vector
 			# uses the overwritable α in the outer scope
-			um, uf = sex_split(u, D_m, D_f) # TODO: multi sex_split: stacked vector to array
+			um, uf = sex_split(u, D_m, D_f) # reconstitute arrays from stacked vector
 
 			# initialize arrays
 			mres = similar(ℓ_m)
@@ -191,26 +191,26 @@ immutable SearchMatch # object fields cannot be modified
 
 			if STOCH
 				# compute residuals of non-linear system
-				for i in CartesianRange(size(ℓ_m))
+				for i in CartesianRange(D_m)
 					mres[i] = ℓ_m[i] - um[i] * (1 + ρ *
 					           sum([α[i.I...,j.I...] * uf[j] / 
 					                 (δ * (1 - α[i.I...,j.I...]) + ψ_m[i] + ψ_f[j])
-					                for j in CartesianRange(size(ℓ_f))]))
+					                for j in CartesianRange(D_f)]))
 				end
-				for j in CartesianRange(size(ℓ_f))
+				for j in CartesianRange(D_f)
 					fres[j] = ℓ_f[j] - uf[j] * (1 + ρ *
 					           sum([α[i.I...,j.I...] * um[i] /
 					                 (δ * (1 - α[i.I...,j.I...]) + ψ_m[i] + ψ_f[j])
-					                for i in CartesianRange(size(ℓ_m))]))
+					                for i in CartesianRange(D_m)]))
 				end
 			else # deterministic case
-				for i in CartesianRange(size(ℓ_m))
+				for i in CartesianRange(D_m)
 					mres[i] = (δ + ψ_m[i]) * ℓ_m[i] - um[i] * ((δ + ψ_m[i]) + ρ *
-					            sum([α[i.I...,j.I...] * uf[j] for j in CartesianRange(size(ℓ_f))]))
+					            sum([α[i.I...,j.I...] * uf[j] for j in CartesianRange(D_f)]))
 				end
-				for j in CartesianRange(size(ℓ_f))
+				for j in CartesianRange(D_f)
 					fres[j] = (δ + ψ_f[j]) * ℓ_f[j] - uf[j] * ((δ + ψ_f[j]) + ρ *
-					            sum([α[i.I...,j.I...] * um[i] for i in CartesianRange(size(ℓ_m))]))
+					            sum([α[i.I...,j.I...] * um[i] for i in CartesianRange(D_m)]))
 				end
 			end
 
@@ -224,14 +224,14 @@ immutable SearchMatch # object fields cannot be modified
 		Compute the implied singlehood value functions given a matching function
 		and singles distributions.
 		```math
-		∀x, 2v(x) = ρ ∫ α(x,y) S(x,y) u(y) dy``,\\
+		∀x, v(x) = β ρ ∫ α(x,y) S(x,y) u(y) dy``,\\
 		S(x,y) = \frac{h(x,y) - v(x) - v(y)}{r+δ+ψ_m(x)+ψ_f(y)}
 		```
 		This function solves a non-linear system of equations for the average value
 		functions, `v(x) = (r+ψ(x))V(x)`.
 		"""
 		#TODO
-		function valuefunc_base!(v::Vector, res::Vector, u_m::Vector, u_f::Vector, A::Array)
+		function valuefunc_base!(v::Vector, res::Vector, u_m::Array, u_f::Array, A::Array)
 			vm, vf = sex_split(v, D_m, D_f)
 
 			# precompute the fixed weights
@@ -254,12 +254,17 @@ immutable SearchMatch # object fields cannot be modified
 		end
 
 		"Compute average match surplus array ``s(x,y)`` from value functions."
-		#TODO
-		function match_surplus(v_m::Vector, v_f::Vector, A::Array)
-			if STOCH
-				s = h .- v_m .- v_f' .+ δ * μ.(A) ./ (r + δ + ψ_m .+ ψ_f')
-			else # deterministic Shimer-Smith model
-				s = h .- v_m .- v_f'
+		function match_surplus(v_m::Array, v_f::Array, A::Array)
+			s = similar(h)
+			for coord in CartesianRange(size(s))
+				i = coord.I[1:length(D_m)]
+				j = coord.I[length(D_m)+1:end]
+				if STOCH
+					s[coord] = h[coord] - v_m[i...] - v_f[j...] +
+							   δ * μ(A[coord]) / (r + δ + ψ_m[i...] .+ ψ_f[j...])
+				else # deterministic Shimer-Smith model
+					s[coord] = h[coord] - v_m[i...] - v_f[j...]
+				end
 			end
 			return s
 		end
@@ -269,14 +274,17 @@ immutable SearchMatch # object fields cannot be modified
 
 		# Initialize guesses for v (deterministic case only): overwritten and reused
 		#   in the inner fixed point iteration.
-		#TODO
-		v_m = 0.5 * h[:,1]
-		v_f = 0.5 * h[1,:]
+		v_m = ones(Float64, D_m)
+		v_f = ones(Float64, D_f)
+
+		# rough initial guess (one-dimensional case)
+		#v_m = 0.5 * h[:,1]
+		#v_f = 0.5 * h[1,:]
 
 		# Initialize matching array: overwritten and reused in the outer fixed point iteration
-		α = 0.5 * ones(Float64, N_m, N_f)
+		α = 0.5 * ones(Float64, size(h))
 
-		# rough initial guess for positive assortativity
+		# rough initial guess for positive assortativity (one-dimensional case)
 		#for i in 1:N_m, j in 1:N_f
 		#	α[i,j] = 1/(1 + exp(abs(i-j)/10))
 		#end
@@ -301,6 +309,7 @@ immutable SearchMatch # object fields cannot be modified
 			if STOCH
 				μα = μ.(A) ./ (r + δ + ψ_m .+ ψ_f') # precompute μ/deno
 
+				#TODO: v as array
 				v_m[:] = (1-β)*ρ * (μα * u_f)
 				v_f[:] = β*ρ * (μα' * u_m)
 
@@ -475,10 +484,9 @@ end # prod_array
 
 
 "Wrapper for nlsolve that handles the concatenation and splitting of sex vectors."
-#TODO
-function sex_solve(eqnsys!, v_m, v_f)
+function sex_solve(eqnsys!::Function, v_m::Array, v_f::Array)
 	# initial guess: stacked vector of previous values
-	guess = [v_m; v_f]
+	guess = [vec(v_m); vec(v_f)]
 
 	# NLsolve
 	result = nlsolve(eqnsys!, guess)
