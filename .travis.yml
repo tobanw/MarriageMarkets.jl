@@ -6,6 +6,8 @@ os:
 julia:
   - release
 # - nightly # failing due to problems with official packages
+env:
+  - JULIA_CPU_CORES=2 # travis vm only has 2 cores, but Julia reads the number of hardware cores
 notifications:
   email: false
 # uncomment the following lines to override the default test script
