@@ -5,7 +5,7 @@ using Distributions
 const STDNORMAL = Normal()
 
 """
-	SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
+	SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 When match-specific shocks are included, the divorce process is endogenized as in Goussé (2014).
@@ -39,7 +39,10 @@ immutable SearchMatch # object fields cannot be modified
 	β::Real
 
 	### Exogenous objects ###
-
+	"male type space"
+	θ_m::Tuple{Tuple{String,Vector}}
+	"female type space"
+	θ_f::Tuple{Tuple{String,Vector}}
 	"male inflows by type"
 	γ_m::Array
 	"female inflows by type"
@@ -84,9 +87,9 @@ immutable SearchMatch # object fields cannot be modified
 	It is not meant to be called directly -- instead, outer constructors should call this
 	constructor with a full set of arguments, using zero values for unwanted components.
 	"""
-	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real,
+	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Tuple, θ_f::Tuple,
 	                     γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
-	                     ℓ_m::Array, ℓ_f::Array, h::Array;
+	                     ℓ_m::Array, ℓ_f::Array, g::Function;
 	                     β=0.5, verbose=false, step=0.2)
 
 		### Model Selection ###
@@ -119,8 +122,6 @@ immutable SearchMatch # object fields cannot be modified
 			error("Dimension mismatch: males.")
 		elseif !(size(ψ_f) == size(γ_f) == size(ℓ_f))
 			error("Dimension mismatch: females.")
-		elseif N_m * N_f ≠ prod(size(h))
-			error("Number of types inconsistent with production array.")
 		end
 
 		if INFLOW # birth/death model
@@ -160,6 +161,28 @@ immutable SearchMatch # object fields cannot be modified
 			st = quantile(STDNORMAL, 1-a) # pre-compute -s/σ = Φ^{-1}(1-a)
 			return σ * (pdf(STDNORMAL, st) - a * st)
 		end
+
+		"Construct production array from function."
+		function prod_array(mtypes::Tuple, ftypes::Tuple, prodfn::Function)
+			h = Array{Float64}((D_m...,D_f...)...)
+			gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
+			lady = Vector{Float64}(length(ftypes))
+
+			for coord in CartesianRange(size(h))
+				for trt in 1:length(mtypes) # loop through traits in coord
+					gent[trt] = mtypes[trt][2][coord[trt]]
+				end
+				for trt in 1:length(ftypes) # loop through traits in coord
+					lady[trt] = ftypes[trt][2][coord[trt+length(mtypes)]]
+				end
+				h[coord] = prodfn(gent, lady)
+			end
+
+			return h
+		end # prod_array
+
+		# construct production array
+		h = prod_array(θ_m, θ_f, g)
 
 
 		### Steady-State Equilibrium Conditions ###
@@ -381,7 +404,7 @@ immutable SearchMatch # object fields cannot be modified
 		s = match_surplus(v_m, v_f, α)
 
 		# construct instance
-		new(ρ, δ, r, σ, β, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
+		new(ρ, δ, r, σ, β, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
 
 	end # constructor
 
@@ -390,15 +413,16 @@ end # type
 
 ### Outer Constructors ###
 
-# Recall inner constructor: SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h)
+# Recall inner constructor:
+#	SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
 
 """
-	SearchClosed(ρ, δ, r, σ, Θ_m, Θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchClosed(ρ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
-					  Θ_m::Tuple, Θ_f::Tuple, ℓ_m::Array, ℓ_f::Array,
+					  θ_m::Tuple, θ_f::Tuple, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ψ_m = zeros(ℓ_m)
@@ -406,97 +430,68 @@ function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 	γ_m = zeros(ℓ_m)
 	γ_f = zeros(ℓ_f)
 
-	# dimensions for production array
-	md = size(ℓ_m)
-	fd = size(ℓ_f)
-
-	h = prod_array(Θ_m, Θ_f, md, fd, g)
-	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=β, verbose=verbose, step=step)
+	return SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
+	                   β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchClosed(ρ, δ, r, σ, Θ_m, Θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchClosed(ρ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
 
 Method for one-dimensional types.
 """
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
-					  Θ_m::Vector, Θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
+					  θ_m::Vector, θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# convert type space to tuple of tuples
-	tΘ_m = (("mtype", Θ_m),)
-	tΘ_f = (("ftype", Θ_f),)
+	tθ_m = (("mtype", θ_m),)
+	tθ_f = (("ftype", θ_f),)
 
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchClosed(ρ, δ, r, σ, tΘ_m, tΘ_f, ℓ_m, ℓ_f, gg; β=β, verbose=verbose, step=step)
+	return SearchClosed(ρ, δ, r, σ, tθ_m, tθ_f, ℓ_m, ℓ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchInflow(ρ, δ, r, σ, Θ_m, Θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchInflow(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
-					  Θ_m::Tuple, Θ_f::Tuple, γ_m::Array, γ_f::Array,
+					  θ_m::Tuple, θ_f::Tuple, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
 					  β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
-	# dimensions for production array
-	md = size(γ_m)
-	fd = size(γ_f)
-
-	h = prod_array(Θ_m, Θ_f, md, fd, g)
-	return SearchMatch(ρ, δ, r, σ, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=β, verbose=verbose, step=step)
+	return SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
+	                   β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchInflow(ρ, δ, r, σ, Θ_m, Θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchInflow(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
 
 Method for one-dimensional types.
 """
 function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
-					  Θ_m::Vector, Θ_f::Vector, γ_m::Array, γ_f::Array,
+					  θ_m::Vector, θ_f::Vector, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
 					  β=0.5, verbose=false, step=0.2)
 	# convert type space to tuple of tuples
-	tΘ_m = (("mtype", Θ_m),)
-	tΘ_f = (("ftype", Θ_f),)
+	tθ_m = (("mtype", θ_m),)
+	tθ_f = (("ftype", θ_f),)
 
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchInflow(ρ, δ, r, σ, tΘ_m, tΘ_f, γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
+	return SearchInflow(ρ, δ, r, σ, tθ_m, tθ_f, γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 
 ### Helper functions ###
 
-"Construct production array from function."
-function prod_array(mtypes::Tuple, ftypes::Tuple, mdims::Tuple, fdims::Tuple, prodfn::Function)
-	h = Array{Float64}((mdims...,fdims...)...)
-	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
-	lady = Vector{Float64}(length(ftypes))
-
-	for coord in CartesianRange(size(h))
-		for trt in 1:length(mtypes) # loop through traits in coord
-			gent[trt] = mtypes[trt][2][coord[trt]]
-		end
-		for trt in 1:length(ftypes) # loop through traits in coord
-			lady[trt] = ftypes[trt][2][coord[trt+length(mtypes)]]
-		end
-		h[coord] = prodfn(gent, lady)
-	end
-
-	return h
-
-end # prod_array
-
-
-"Wrapper for nlsolve that handles the concatenation and splitting of sex vectors."
+"Wrapper for nlsolve that handles the concatenation and splitting of sex-specific arrays."
 function sex_solve(eqnsys!::Function, v_m::Array, v_f::Array)
 	# initial guess: stacked vector of previous values
 	guess = [vec(v_m); vec(v_f)]
