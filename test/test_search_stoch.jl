@@ -1,34 +1,8 @@
 # uses variables from setup_tests.jl
 
+STDNORMAL = Normal()
 G(x::Real) = cdf(Normal(0, σ), x)
 μ(a::Real) = σ * (pdf(STDNORMAL, quantile(STDNORMAL, 1-a)) - a * quantile(STDNORMAL, 1-a))
-
-function closed_uniform(ntypes, mmass, fmass, prod, σ)
-	
-	# types
-	Θ = Vector(linspace(1.0, 2.0, ntypes))
-
-	# uniform population distributions
-	lm = (mmass / ntypes) * ones(Float64, ntypes)
-	lf = (fmass / ntypes) * ones(Float64, ntypes)
-
-	return SearchClosed(ρ, δ, r, σ, Θ, Θ, lm, lf, prod)
-end
-
-function inflow_uniform(ntypes, mmass, fmass, prod, σ)
-	
-	# types
-	Θ = Vector(linspace(1.0, 2.0, ntypes))
-
-	# uniform population inflows
-	gm = (mmass / ntypes) * ones(Float64, ntypes)
-	gf = (fmass / ntypes) * ones(Float64, ntypes)
-
-	# uniform death rates: normalized to 1
-	d = ones(Float64, ntypes)
-
-	return SearchInflow(ρ, δ, r, σ, Θ, Θ, gm, gf, d, d, prod)
-end
 
 
 ### Verifications: endogenous divorce model ###
@@ -96,14 +70,15 @@ end
 ### Tests: endogenous divorce model ###
 
 # symmetric case
-rsym = closed_uniform(30, 100, 100, h, σ)
+rsym = fetch(rsym_job) # get result from worker process
 
 @fact rsym.v_m --> roughly(rsym.v_f) "expected symmetry of values"
 @fact rsym.u_m --> roughly(rsym.u_f) "expected symmetry of singles"
 @fact rsym.α --> roughly(rsym.α') "expected symmetry of matching"
 
-# asymmetric case: needs σ >~ 10 to converge
-rasym = closed_uniform(30, 50, 100, h, σ)
+
+# asymmetric case
+rasym = fetch(rasym_job) # get result from worker process
 
 # check convergence
 rmsse, rfsse = sse_stoch(rasym)
@@ -119,18 +94,3 @@ rmvf, rfvf = vf_stoch(rasym)
 
 # sex ratio effects on singles
 @fact (rsym.u_f .≤ rasym.u_f) --> all "expected more singlehood with fewer available men"
-
-# inflow model: symmetric
-inflow_symm = inflow_uniform(30, 100, 100, h, σ)
-imsse, ifsse = sse_stoch(inflow_symm)
-@fact inflow_symm.v_m --> roughly(inflow_symm.v_f) "expected symmetry of values"
-@fact inflow_symm.u_m --> roughly(inflow_symm.u_f) "expected symmetry of singles"
-@fact inflow_symm.α --> roughly(inflow_symm.α') "expected symmetry of matching"
-@fact imsse --> roughly(zeros(imsse), atol=1e-7) "market equilibrium: single men did not converge"
-@fact ifsse --> roughly(zeros(ifsse), atol=1e-7) "market equilibrium: single women did not converge"
-
-# inflow model: asymmetric
-inflow_asymm = inflow_uniform(30, 50, 100, h, σ)
-rimsse, rifsse = sse_stoch(inflow_asymm)
-@fact rimsse --> roughly(zeros(rimsse), atol=1e-7) "market equilibrium: single men did not converge"
-@fact rifsse --> roughly(zeros(rifsse), atol=1e-7) "market equilibrium: single women did not converge"

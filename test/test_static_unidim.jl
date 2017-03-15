@@ -1,25 +1,8 @@
-function basicunidim(nmen, nwom, prod)
-	
-	# types: concave to prevent numerical instability
-	men = [log(i+1) for i=1:nmen]
-	wom = [log(j+1) for j=1:nwom]
+# verify that super/sub-modularity of production implies positive/negative assortative matching.
 
-	# masses: unit mass of each sex
-	menmass = ones(Float64, nmen)/nmen
-	wommass = ones(Float64, nwom)/nwom
-
-	return StaticMatch(men, wom, menmass, wommass, prod)
-end
-
-
-# instantiate a StaticMatch and verify that super/sub-modularity of production implies positive/negative assortative matching.
-n = 5
-hsup(x,y) = dot(x,y)/2 # supermodular production function
-pam = basicunidim(n, n, hsup) # must be symmetric for the symmetry test
-nmen = 3
-nwom = 5
-hsub(x,y) = sqrt(sum(x+y)) # submodular production function
-nam = basicunidim(nmen, nwom, hsub)
+# get results from worker processes
+pam = fetch(pam_job)
+nam = fetch(nam_job)
 
 # sum of diag corners greater than sum of anti-diag corners
 @fact pam.matches[1,1] + pam.matches[end,end] -->

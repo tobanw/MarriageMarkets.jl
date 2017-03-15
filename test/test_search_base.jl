@@ -57,22 +57,9 @@ function surplus_base(M::SearchMatch)
 end
 
 
-### Setup ###
-
-# symmetric case only
-ntypes = 50
-mass = 100
-types = Vector(linspace(1.0, 2.0, ntypes))
-
-# uniform population distributions
-lm = (mass / ntypes) * ones(Float64, ntypes)
-lf = (mass / ntypes) * ones(Float64, ntypes)
-
-# instantiate a MarriageMarket
-symm = SearchClosed(ρ, δ, r, 0, types, types, lm, lf, h)
-
-
 ### Tests: basic Shimer-Smith model ###
+
+symm = fetch(symm_job) # get result from worker process
 
 # check convergence
 msse, fsse = sse_base(symm)

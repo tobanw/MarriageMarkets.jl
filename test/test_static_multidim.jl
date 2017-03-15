@@ -1,33 +1,11 @@
 # uses variables from setup_tests.jl
 
-# symmetric case
-
-n1 = 6
-n2 = 2
-
-men = Vector[[log(1+i) for i=1:n1], [i for i=1:n2]]
-wom = Vector[[log(1+i) for i=1:n1], [i for i=1:n2]]
-
-# mass vectors: unit mass of each sex
-mdist = ones(Float64, n1, n2)/(n1*n2)
-fdist = ones(Float64, n1, n2)/(n1*n2)
-
-mgmkt = StaticMatch(men, wom, mdist, fdist, hm)
+mgmkt = fetch(symm_multi_job)
 
 # check symmetry
 @fact mgmkt.msingle --> roughly(mgmkt.fsingle) "expected symmetry of singles"
 
-
-# asymmetric case
-
-men2 = Vector[[1.0, 1.2, 1.3], [0.0, 1.0]]
-wom2 = Vector[[1.0, 1.2, 1.3, 1.35, 1.4], [0.0, 1.0]]
-
-# mass vectors: unit mass of each sex
-mdist2 = ones(Float64, 3, 2)/6
-fdist2 = ones(Float64, 5, 2)/10
-
-mgmkt2 = StaticMatch(men2, wom2, mdist2, fdist2, hm)
+mgmkt2 = fetch(asym_multi_job)
 
 # check that supermodular surplus results in positive assortative matching
 @fact mgmkt2.matches[1,1,1,1] + mgmkt2.matches[end,end,end,end] -->
