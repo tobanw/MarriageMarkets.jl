@@ -28,6 +28,10 @@ facts("Search model:") do
 	context("Stochastic model") do
 		include("test_search_stoch.jl")
 	end
+
+	context("Multidimensional types") do
+		include("test_search_multidim.jl")
+	end
 end #facts
 
 exitstatus() # for CI, makes this code fail if a test fails

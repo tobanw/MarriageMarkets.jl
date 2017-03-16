@@ -68,3 +68,12 @@ rsym_job = search_uniform(20, 100, 100, h, σ)
 
 # asymmetric case: needs σ >~ 10 to converge
 rasym_job = search_uniform(20, 50, 100, h, σ)
+
+# multidimensional types: symmetric case
+k1, k2 = 10, 2
+# common type vector
+srsymtypes = Vector[[log(1+i) for i=1:k1], [i for i=1:k2]]
+# mass vectors: unit mass of each sex
+srsymdist= ones(Float64, k1, k2)/(k1*k2)
+
+srsymm_multi_job = @spawn SearchClosed(ρ, δ, r, σ, srsymtypes, srsymtypes, srsymdist, srsymdist, hsup)
