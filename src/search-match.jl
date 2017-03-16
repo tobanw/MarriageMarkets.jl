@@ -40,9 +40,9 @@ immutable SearchMatch # object fields cannot be modified
 
 	### Exogenous objects ###
 	"male type space"
-	θ_m::Tuple{Tuple{String,Vector}}
+	θ_m::Vector{Vector}
 	"female type space"
-	θ_f::Tuple{Tuple{String,Vector}}
+	θ_f::Vector{Vector}
 	"male inflows by type"
 	γ_m::Array
 	"female inflows by type"
@@ -87,16 +87,18 @@ immutable SearchMatch # object fields cannot be modified
 	It is not meant to be called directly -- instead, outer constructors should call this
 	constructor with a full set of arguments, using zero values for unwanted components.
 	"""
-	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Tuple, θ_f::Tuple,
+	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
 	                     γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
-	                     ℓ_m::Array, ℓ_f::Array, g::Function;
+	                     ℓ_m::Array, ℓ_f::Array, h::Array;
 	                     β=0.5, verbose=false, step=0.2)
 
 		### Model Selection ###
 
-		D_m = size(γ_m)
-		D_f = size(γ_f)
+		# dimensions of type spaces
+		D_m = ([length(v) for v in θ_m]...)
+		D_f = ([length(v) for v in θ_f]...)
 
+		# total numbers of types
 		N_m = prod(D_m)
 		N_f = prod(D_f)
 
@@ -121,6 +123,10 @@ immutable SearchMatch # object fields cannot be modified
 		elseif !(size(ψ_m) == size(γ_m) == size(ℓ_m))
 			error("Dimension mismatch: males.")
 		elseif !(size(ψ_f) == size(γ_f) == size(ℓ_f))
+			error("Dimension mismatch: females.")
+		elseif D_m ≠ size(γ_m)
+			error("Dimension mismatch: males.")
+		elseif D_f ≠ size(γ_f)
 			error("Dimension mismatch: females.")
 		end
 
@@ -161,28 +167,6 @@ immutable SearchMatch # object fields cannot be modified
 			st = quantile(STDNORMAL, 1-a) # pre-compute -s/σ = Φ^{-1}(1-a)
 			return σ * (pdf(STDNORMAL, st) - a * st)
 		end
-
-		"Construct production array from function."
-		function prod_array(mtypes::Tuple, ftypes::Tuple, prodfn::Function)
-			h = Array{Float64}((D_m...,D_f...)...)
-			gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
-			lady = Vector{Float64}(length(ftypes))
-
-			for coord in CartesianRange(size(h))
-				for trt in 1:length(mtypes) # loop through traits in coord
-					gent[trt] = mtypes[trt][2][coord[trt]]
-				end
-				for trt in 1:length(ftypes) # loop through traits in coord
-					lady[trt] = ftypes[trt][2][coord[trt+length(mtypes)]]
-				end
-				h[coord] = prodfn(gent, lady)
-			end
-
-			return h
-		end # prod_array
-
-		# construct production array
-		h = prod_array(θ_m, θ_f, g)
 
 
 		### Steady-State Equilibrium Conditions ###
@@ -417,12 +401,30 @@ end # type
 #	SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
 
 """
+Outer constructor that constructs the production array from the types and production function.
+"""
+function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
+					 γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
+					 ℓ_m::Array, ℓ_f::Array, g::Function;
+					 β=0.5, verbose=false, step=0.2)
+
+	# construct production array
+	h = prod_array(θ_m, θ_f, g)
+
+	return SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h;
+	                   β=β, verbose=verbose, step=step)
+end
+
+
+### Convenience methods to call constructors ###
+
+"""
 	SearchClosed(ρ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
-					  θ_m::Tuple, θ_f::Tuple, ℓ_m::Array, ℓ_f::Array,
+					  θ_m::Vector{Vector}, θ_f::Vector{Vector}, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
 	ψ_m = zeros(ℓ_m)
@@ -442,14 +444,11 @@ Method for one-dimensional types.
 function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 					  θ_m::Vector, θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
-	# convert type space to tuple of tuples
-	tθ_m = (("mtype", θ_m),)
-	tθ_f = (("ftype", θ_f),)
-
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchClosed(ρ, δ, r, σ, tθ_m, tθ_f, ℓ_m, ℓ_f, gg; β=β, verbose=verbose, step=step)
+	return SearchClosed(ρ, δ, r, σ, Vector[θ_m], Vector[θ_f], ℓ_m, ℓ_f, gg;
+	                    β=β, verbose=verbose, step=step)
 end
 
 """
@@ -478,18 +477,38 @@ function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
 					  θ_m::Vector, θ_f::Vector, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
 					  β=0.5, verbose=false, step=0.2)
-	# convert type space to tuple of tuples
-	tθ_m = (("mtype", θ_m),)
-	tθ_f = (("ftype", θ_f),)
-
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchInflow(ρ, δ, r, σ, tθ_m, tθ_f, γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
+	return SearchInflow(ρ, δ, r, σ, Vector[θ_m], Vector[θ_f], γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 
 ### Helper functions ###
+
+"Construct production array from function."
+function prod_array(mtypes::Vector{Vector}, ftypes::Vector{Vector}, prodfn::Function)
+	# get dimensions
+	Dm = [length(v) for v in mtypes]
+	Df = [length(v) for v in ftypes]
+
+	# initialize arrays
+	h = Array{Float64}(Dm..., Df...)
+	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
+	lady = Vector{Float64}(length(ftypes))
+
+	for coord in CartesianRange(size(h))
+		for trt in 1:length(mtypes) # loop through traits in coord
+			gent[trt] = mtypes[trt][coord[trt]]
+		end
+		for trt in 1:length(ftypes) # loop through traits in coord
+			lady[trt] = ftypes[trt][coord[trt+length(mtypes)]]
+		end
+		h[coord] = prodfn(gent, lady)
+	end
+
+	return h
+end # prod_array
 
 "Wrapper for nlsolve that handles the concatenation and splitting of sex-specific arrays."
 function sex_solve(eqnsys!::Function, v_m::Array, v_f::Array)

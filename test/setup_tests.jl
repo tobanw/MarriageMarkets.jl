@@ -20,7 +20,7 @@ function static_unidim(nmen, nwom, prod)
 	return job
 end
 
-@everywhere function search_uniform(ntypes, mmass, fmass, prod, σ)
+function search_uniform(ntypes, mmass, fmass, prod, σ)
 	Θ = Vector(linspace(1.0, 2.0, ntypes)) # types
 
 	# uniform population distributions
@@ -38,7 +38,7 @@ nam_job = static_unidim(3, 5, hsub)
 
 # multidimensional types: symmetric case
 n1, n2 = 6, 2
-# type vectors
+# common type vector
 symtypes = Vector[[log(1+i) for i=1:n1], [i for i=1:n2]]
 # mass vectors: unit mass of each sex
 symdist = ones(Float64, n1, n2)/(n1*n2)

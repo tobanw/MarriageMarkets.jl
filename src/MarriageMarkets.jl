@@ -1,5 +1,5 @@
 """
-A Julia package for solving various marriage market matching models.
+A package for solving various marriage market matching models.
 
 Two models are supported:
 
@@ -8,12 +8,6 @@ Two models are supported:
 
 `SearchMatch` is generalized in a few ways beyond the model presented in the paper.
 This includes a match-specific "love" shock to make the matching probabilistic.
-
-Upcoming features:
-
-- exogenous inflow of singles and outflow via death
-- type depreciation (to capture aging, for example)
-- multi-dimensional types
 """
 module MarriageMarkets
 
