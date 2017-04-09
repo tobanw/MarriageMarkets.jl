@@ -3,11 +3,11 @@ using FactCheck
 # compute models in parallel: multiprocess
 addprocs(Sys.CPU_CORES) # add a worker process per core
 print_with_color(:white, "Setup:\n")
-print("  > Using $(nprocs()-1) worker processes\n")
+println("  > Using $(nprocs()-1) worker processes")
 
 using MarriageMarkets
 
-print("  > Computing models...\n")
+println("  > Computing models...")
 include("setup_tests.jl") # multiprocess model computations
 
 facts("Static model:") do

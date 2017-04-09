@@ -5,7 +5,7 @@ using Distributions
 const STDNORMAL = Normal()
 
 """
-	SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
+	SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
 
 Construct a Shimer & Smith (2000) marriage market model and solve for the equilibrium.
 When match-specific shocks are included, the divorce process is endogenized as in Goussé (2014).
@@ -28,7 +28,7 @@ immutable SearchMatch # object fields cannot be modified
 	### Parameters ###
 
 	"arrival rate of meetings"
-	ρ::Real
+	λ::Real
 	"arrival rate of separation shocks"
 	δ::Real
 	"discount rate"
@@ -87,7 +87,7 @@ immutable SearchMatch # object fields cannot be modified
 	It is not meant to be called directly -- instead, outer constructors should call this
 	constructor with a full set of arguments, using zero values for unwanted components.
 	"""
-	function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
+	function SearchMatch(λ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
 	                     γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
 	                     ℓ_m::Array, ℓ_f::Array, h::Array;
 	                     β=0.5, verbose=false, step=0.2)
@@ -118,8 +118,8 @@ immutable SearchMatch # object fields cannot be modified
 
 		### Argument Validation ###
 
-		if any([ρ, δ, r] .≤ 0)
-			error("Parameters ρ, δ, r must be positive.")
+		if any([λ, δ, r] .≤ 0)
+			error("Parameters λ, δ, r must be positive.")
 		elseif !(size(ψ_m) == size(γ_m) == size(ℓ_m))
 			error("Dimension mismatch: males.")
 		elseif !(size(ψ_f) == size(γ_f) == size(ℓ_f))
@@ -177,11 +177,11 @@ immutable SearchMatch # object fields cannot be modified
 		The steady state conditions equating flows into and out of marriage
 		in the deterministic setting are
 		```math
-		∀x, (δ + ψ(x))(ℓ(x) - u(x)) = ρ u(x) ∫ α(x,y) u(y) dy
+		∀x, (δ + ψ(x))(ℓ(x) - u(x)) = λ u(x) ∫ α(x,y) u(y) dy
 		```
 		and with productivity shocks and endogenous divorce they are
 		```math
-		∀x, ℓ(x) - u(x) = ρ u(x) ∫\frac{α(x,y)}{ψ(x)+ψ(y)+δ(1-α(x,y))}u(y)dy
+		∀x, ℓ(x) - u(x) = λ u(x) ∫\frac{α(x,y)}{ψ(x)+ψ(y)+δ(1-α(x,y))}u(y)dy
 		```
 		Thus, this function solves a non-linear system of equations for `u_m` and `u_f`.
 		The constraints ``0 ≤ u ≤ ℓ`` are not enforced here, but the outputs of this function
@@ -199,24 +199,24 @@ immutable SearchMatch # object fields cannot be modified
 			if STOCH
 				# compute residuals of non-linear system
 				for i in CartesianRange(D_m)
-					mres[i] = ℓ_m[i] - um[i] * (1 + ρ *
+					mres[i] = ℓ_m[i] - um[i] * (1 + λ *
 					           sum([α[i.I...,j.I...] * uf[j] / 
 					                 (δ * (1 - α[i.I...,j.I...]) + ψ_m[i] + ψ_f[j])
 					                for j in CartesianRange(D_f)]))
 				end
 				for j in CartesianRange(D_f)
-					fres[j] = ℓ_f[j] - uf[j] * (1 + ρ *
+					fres[j] = ℓ_f[j] - uf[j] * (1 + λ *
 					           sum([α[i.I...,j.I...] * um[i] /
 					                 (δ * (1 - α[i.I...,j.I...]) + ψ_m[i] + ψ_f[j])
 					                for i in CartesianRange(D_m)]))
 				end
 			else # deterministic case
 				for i in CartesianRange(D_m)
-					mres[i] = (δ + ψ_m[i]) * ℓ_m[i] - um[i] * ((δ + ψ_m[i]) + ρ *
+					mres[i] = (δ + ψ_m[i]) * ℓ_m[i] - um[i] * ((δ + ψ_m[i]) + λ *
 					            sum([α[i.I...,j.I...] * uf[j] for j in CartesianRange(D_f)]))
 				end
 				for j in CartesianRange(D_f)
-					fres[j] = (δ + ψ_f[j]) * ℓ_f[j] - uf[j] * ((δ + ψ_f[j]) + ρ *
+					fres[j] = (δ + ψ_f[j]) * ℓ_f[j] - uf[j] * ((δ + ψ_f[j]) + λ *
 					            sum([α[i.I...,j.I...] * um[i] for i in CartesianRange(D_m)]))
 				end
 			end
@@ -231,7 +231,7 @@ immutable SearchMatch # object fields cannot be modified
 		Compute the implied singlehood value functions given a matching function
 		and singles distributions.
 		```math
-		∀x, v(x) = (1-β) ρ ∫ α(x,y) S(x,y) u(y) dy
+		∀x, v(x) = (1-β) λ ∫ α(x,y) S(x,y) u(y) dy
 		```
 		This function solves a non-linear system of equations for the average value
 		functions, `v(x) = (r+ψ(x))V(x)`.
@@ -248,13 +248,13 @@ immutable SearchMatch # object fields cannot be modified
 
 			# compute residuals of non-linear system
 			for i in CartesianRange(D_m)
-				mres[i] = vm[i] - (1-β) * ρ *
-				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_f[j]
+				mres[i] = vm[i] - (1-β) * λ *
+				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_f[j]
 				                for j in CartesianRange(D_f)])
 			end
 			for j in CartesianRange(D_f)
-				fres[j] = vf[j] - β * ρ *
-				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_m[i]
+				fres[j] = vf[j] - β * λ *
+				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_m[i]
 				                for i in CartesianRange(D_m)])
 			end
 
@@ -278,7 +278,7 @@ immutable SearchMatch # object fields cannot be modified
 				j = coord.I[length(D_m)+1:end]
 				if STOCH
 					s[coord] = h[coord] - v_m[i...] - v_f[j...] +
-					            δ * μ(A[coord]) / (r + δ + ψ_m[i...] .+ ψ_f[j...])
+					            δ * μ(A[coord]) / (r + δ + ψ_m[i...] + ψ_f[j...])
 				else # deterministic Shimer-Smith model
 					s[coord] = h[coord] - v_m[i...] - v_f[j...]
 				end
@@ -311,7 +311,7 @@ immutable SearchMatch # object fields cannot be modified
 		Solves value functions and match probabilities given singles distributions.
 		The value functional equations are:
 		```math
-		∀x, (r+ψ(x))V(x) = (1-β) ρ ∫\frac{μ(α(x,y))}{r+δ+ψ(x)+ψ(y)}u(y)dy,\\
+		∀x, (r+ψ(x))V(x) = (1-β) λ ∫\frac{μ(α(x,y))}{r+δ+ψ(x)+ψ(y)}u(y)dy,\\
 		μ(α(x,y)) = α(x,y)(-G^{-1}(1-α(x,y)) + E[z|z > G^{-1}(1-α(x,y))])
 		```
 		Alternatively, this could be written as an array of point-wise equations
@@ -327,11 +327,11 @@ immutable SearchMatch # object fields cannot be modified
 
 				# compute residuals of non-linear system
 				for i in CartesianRange(D_m)
-					v_m[i] = (1-β) * ρ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_f[j]
+					v_m[i] = (1-β) * λ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_f[j]
 					                          for j in CartesianRange(D_f)])
 				end
 				for j in CartesianRange(D_f)
-					v_f[j] = β * ρ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] .+ ψ_f[j]) * u_m[i]
+					v_f[j] = β * λ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_m[i]
 					                      for i in CartesianRange(D_m)])
 				end
 
@@ -388,7 +388,7 @@ immutable SearchMatch # object fields cannot be modified
 		s = match_surplus(v_m, v_f, α)
 
 		# construct instance
-		new(ρ, δ, r, σ, β, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
+		new(λ, δ, r, σ, β, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, h, ℓ_m, ℓ_f, u_m, u_f, v_m, v_f, α, s)
 
 	end # constructor
 
@@ -398,12 +398,12 @@ end # type
 ### Outer Constructors ###
 
 # Recall inner constructor:
-#	SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
+#	SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h; β=0.5, verbose=false, step=0.2)
 
 """
 Outer constructor that constructs the production array from the types and production function.
 """
-function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
+function SearchMatch(λ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
 					 γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
 					 ℓ_m::Array, ℓ_f::Array, g::Function;
 					 β=0.5, verbose=false, step=0.2)
@@ -411,7 +411,7 @@ function SearchMatch(ρ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}
 	# construct production array
 	h = prod_array(θ_m, θ_f, g)
 
-	return SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h;
+	return SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, h;
 	                   β=β, verbose=verbose, step=step)
 end
 
@@ -419,11 +419,11 @@ end
 ### Convenience methods to call constructors ###
 
 """
-	SearchClosed(ρ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchClosed(λ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
 """
-function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
+function SearchClosed(λ::Real, δ::Real, r::Real, σ::Real,
 					  θ_m::Vector{Vector}, θ_f::Vector{Vector}, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
@@ -432,31 +432,31 @@ function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
 	γ_m = zeros(ℓ_m)
 	γ_f = zeros(ℓ_f)
 
-	return SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
+	return SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
 	                   β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchClosed(ρ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchClosed(λ, δ, r, σ, θ_m, θ_f, ℓ_m, ℓ_f, g; β=0.5, verbose=false, step=0.2)
 
 Method for one-dimensional types.
 """
-function SearchClosed(ρ::Real, δ::Real, r::Real, σ::Real,
+function SearchClosed(λ::Real, δ::Real, r::Real, σ::Real,
 					  θ_m::Vector, θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchClosed(ρ, δ, r, σ, Vector[θ_m], Vector[θ_f], ℓ_m, ℓ_f, gg;
+	return SearchClosed(λ, δ, r, σ, Vector[θ_m], Vector[θ_f], ℓ_m, ℓ_f, gg;
 	                    β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchInflow(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchInflow(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
 
 Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
 """
-function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
+function SearchInflow(λ::Real, δ::Real, r::Real, σ::Real,
 					  θ_m::Tuple, θ_f::Tuple, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
 					  β=0.5, verbose=false, step=0.2)
@@ -464,23 +464,23 @@ function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
 	ℓ_m = zeros(γ_m)
 	ℓ_f = zeros(γ_f)
 
-	return SearchMatch(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
+	return SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
 	                   β=β, verbose=verbose, step=step)
 end
 
 """
-	SearchInflow(ρ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
+	SearchInflow(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, g; β=0.5, verbose=false, step=0.2)
 
 Method for one-dimensional types.
 """
-function SearchInflow(ρ::Real, δ::Real, r::Real, σ::Real,
+function SearchInflow(λ::Real, δ::Real, r::Real, σ::Real,
 					  θ_m::Vector, θ_f::Vector, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
 					  β=0.5, verbose=false, step=0.2)
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchInflow(ρ, δ, r, σ, Vector[θ_m], Vector[θ_f], γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
+	return SearchInflow(λ, δ, r, σ, Vector[θ_m], Vector[θ_f], γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 

@@ -10,8 +10,8 @@ G(x::Real) = cdf(Normal(0, σ), x)
 """
 Element-by-element calculation of steady state flow equations
 ```julia
-mres = ℓ_m - um .* (1 .+ ρ .* ((α ./ (δ*(1-α) .+ ψ_m .+ ψ_f')) * uf))
-fres = ℓ_f - uf .* (1 .+ ρ .* ((α ./ (δ*(1-α) .+ ψ_m .+ ψ_f'))' * um))
+mres = ℓ_m - um .* (1 .+ λ .* ((α ./ (δ*(1-α) .+ ψ_m .+ ψ_f')) * uf))
+fres = ℓ_f - uf .* (1 .+ λ .* ((α ./ (δ*(1-α) .+ ψ_m .+ ψ_f'))' * um))
 ```
 """
 function sse_stoch(M::SearchMatch)
@@ -20,11 +20,11 @@ function sse_stoch(M::SearchMatch)
 	fres = similar(M.ℓ_f)
 	
 	for i in 1:length(M.ℓ_m)
-		mres[i] = M.ℓ_m[i] - M.u_m[i] * (1 + M.ρ * dot(M.α[i,:] ./
+		mres[i] = M.ℓ_m[i] - M.u_m[i] * (1 + M.λ * dot(M.α[i,:] ./
 		          (M.δ * (1 - M.α[i,:]) + M.ψ_m[i] .+ M.ψ_f), M.u_f))
 	end
 	for j in 1:length(M.ℓ_f)
-		fres[j] = M.ℓ_f[j] - M.u_f[j] * (1 + M.ρ * dot(M.α[:,j] ./
+		fres[j] = M.ℓ_f[j] - M.u_f[j] * (1 + M.λ * dot(M.α[:,j] ./
 		          (M.δ * (1 - M.α[:,j]) + M.ψ_f[j] .+ M.ψ_m), M.u_m))
 	end
 	return mres, fres
@@ -34,8 +34,8 @@ end
 Element-by-element calculation of value function equations
 ```julia
 
-v_m = 0.5*ρ * (μα * u_f)
-v_f = 0.5*ρ * (μα' * u_m)
+v_m = 0.5*λ * (μα * u_f)
+v_f = 0.5*λ * (μα' * u_m)
 ```
 where `μα = μ.(α) ./ (r + δ + ψ_m .+ ψ_f')`
 """
@@ -44,11 +44,11 @@ function vf_stoch(M::SearchMatch)
 	fres = similar(M.v_f)
 
 	for i in 1:length(M.v_m)
-		mres[i] = 2*M.v_m[i] - M.ρ * dot(μ.(M.α[i,:]) ./
+		mres[i] = 2*M.v_m[i] - M.λ * dot(μ.(M.α[i,:]) ./
 		                             (M.r + M.δ + M.ψ_m[i] .+ M.ψ_f), M.u_f)
 	end
 	for j in 1:length(M.v_f)
-		fres[j] = 2*M.v_f[j] - M.ρ * dot(μ.(M.α[:,j]) ./
+		fres[j] = 2*M.v_f[j] - M.λ * dot(μ.(M.α[:,j]) ./
 		                             (M.r + M.δ + M.ψ_f[j] .+ M.ψ_m), M.u_m)
 	end
 

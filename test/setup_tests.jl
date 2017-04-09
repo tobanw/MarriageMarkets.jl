@@ -1,6 +1,6 @@
 using Distributions
 
-ρ, r, δ, σ = 5.0, 0.05, 0.05, 10.0
+λ, r, δ, σ = 5.0, 0.05, 0.05, 10.0
 
 @everywhere h(x::Real, y::Real) = x*y # unidimensional production function
 @everywhere hsup(x::Vector,y::Vector) = dot(x,y)/2 # supermodular production function
@@ -27,7 +27,7 @@ function search_uniform(ntypes, mmass, fmass, prod, σ)
 	lm = (mmass / ntypes) * ones(Float64, ntypes)
 	lf = (fmass / ntypes) * ones(Float64, ntypes)
 
-	job = @spawn SearchClosed(ρ, δ, r, σ, Θ, Θ, lm, lf, prod)
+	job = @spawn SearchClosed(λ, δ, r, σ, Θ, Θ, lm, lf, prod)
 	return job
 end
 
@@ -76,4 +76,4 @@ srsymtypes = Vector[[log(1+i) for i=1:k1], [i for i=1:k2]]
 # mass vectors: unit mass of each sex
 srsymdist= ones(Float64, k1, k2)/(k1*k2)
 
-srsymm_multi_job = @spawn SearchClosed(ρ, δ, r, σ, srsymtypes, srsymtypes, srsymdist, srsymdist, hsup)
+srsymm_multi_job = @spawn SearchClosed(λ, δ, r, σ, srsymtypes, srsymtypes, srsymdist, srsymdist, hsup)

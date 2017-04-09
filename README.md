@@ -36,7 +36,7 @@ using MarriageMarkets
 using Gadfly
 using Distributions
 
-ρ, δ = 500.0, 0.05 # arrival rates of meetings and divorce shocks
+λ, δ = 500.0, 0.05 # arrival rates of meetings and divorce shocks
 r = 0.05 # discount rate
 σ = 1 # variance of Normally distributed match-specific productivity shocks
 n = 50 # number of types
@@ -47,7 +47,7 @@ f(x,y) = x*y # marital production function
 ψ = ones(n) # uniform death rates
 
 
-mgmkt = SearchInflow(ρ, δ, r, σ, Θ, Θ, γ, γ, ψ, ψ, f)
+mgmkt = SearchInflow(λ, δ, r, σ, Θ, Θ, γ, γ, ψ, ψ, f)
 
 plot(z=mgmkt.α, Geom.contour, Guide.title("Match probability conditional on meeting"))
 ```
