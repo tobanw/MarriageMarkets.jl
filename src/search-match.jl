@@ -198,26 +198,26 @@ immutable SearchMatch # object fields cannot be modified
 
 			if STOCH
 				# compute residuals of non-linear system
-				for i in CartesianRange(D_m)
-					mres[i] = ℓ_m[i] - um[i] * (1 + λ *
-					           sum([α[i.I...,j.I...] * uf[j] / 
-					                 (δ * (1 - α[i.I...,j.I...]) + ψ_m[i] + ψ_f[j])
-					                for j in CartesianRange(D_f)]))
+				for x in CartesianRange(D_m)
+					mres[x] = ℓ_m[x] - um[x] * (1 + λ *
+					           sum([α[x.I...,y.I...] * uf[y] / 
+					                 (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
+					                for y in CartesianRange(D_f)]))
 				end
-				for j in CartesianRange(D_f)
-					fres[j] = ℓ_f[j] - uf[j] * (1 + λ *
-					           sum([α[i.I...,j.I...] * um[i] /
-					                 (δ * (1 - α[i.I...,j.I...]) + ψ_m[i] + ψ_f[j])
-					                for i in CartesianRange(D_m)]))
+				for y in CartesianRange(D_f)
+					fres[y] = ℓ_f[y] - uf[y] * (1 + λ *
+					           sum([α[x.I...,y.I...] * um[x] /
+					                 (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
+					                for x in CartesianRange(D_m)]))
 				end
 			else # deterministic case
-				for i in CartesianRange(D_m)
-					mres[i] = (δ + ψ_m[i]) * ℓ_m[i] - um[i] * ((δ + ψ_m[i]) + λ *
-					            sum([α[i.I...,j.I...] * uf[j] for j in CartesianRange(D_f)]))
+				for x in CartesianRange(D_m)
+					mres[x] = (δ + ψ_m[x]) * ℓ_m[x] - um[x] * ((δ + ψ_m[x]) + λ *
+					            sum([α[x.I...,y.I...] * uf[y] for y in CartesianRange(D_f)]))
 				end
-				for j in CartesianRange(D_f)
-					fres[j] = (δ + ψ_f[j]) * ℓ_f[j] - uf[j] * ((δ + ψ_f[j]) + λ *
-					            sum([α[i.I...,j.I...] * um[i] for i in CartesianRange(D_m)]))
+				for y in CartesianRange(D_f)
+					fres[y] = (δ + ψ_f[y]) * ℓ_f[y] - uf[y] * ((δ + ψ_f[y]) + λ *
+					            sum([α[x.I...,y.I...] * um[x] for x in CartesianRange(D_m)]))
 				end
 			end
 
@@ -247,15 +247,15 @@ immutable SearchMatch # object fields cannot be modified
 			αs = A .* match_surplus(vm, vf, A)
 
 			# compute residuals of non-linear system
-			for i in CartesianRange(D_m)
-				mres[i] = vm[i] - (1-β) * λ *
-				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_f[j]
-				                for j in CartesianRange(D_f)])
+			for x in CartesianRange(D_m)
+				mres[x] = vm[x] - (1-β) * λ *
+				           sum([αs[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_f[y]
+				                for y in CartesianRange(D_f)])
 			end
-			for j in CartesianRange(D_f)
-				fres[j] = vf[j] - β * λ *
-				           sum([αs[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_m[i]
-				                for i in CartesianRange(D_m)])
+			for y in CartesianRange(D_f)
+				fres[y] = vf[y] - β * λ *
+				           sum([αs[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_m[x]
+				                for x in CartesianRange(D_m)])
 			end
 
 			res[:] = [vec(mres); vec(fres)] # concatenate into stacked vector
@@ -273,14 +273,14 @@ immutable SearchMatch # object fields cannot be modified
 		"Compute average match surplus array ``s(x,y)`` from value functions."
 		function match_surplus(v_m::Array, v_f::Array, A::Array)
 			s = similar(h)
-			for coord in CartesianRange(size(s))
-				i = coord.I[1:length(D_m)]
-				j = coord.I[length(D_m)+1:end]
+			for xy in CartesianRange(size(s))
+				x = xy.I[1:length(D_m)]
+				y = xy.I[length(D_m)+1:end]
 				if STOCH
-					s[coord] = h[coord] - v_m[i...] - v_f[j...] +
-					            δ * μ(A[coord]) / (r + δ + ψ_m[i...] + ψ_f[j...])
+					s[xy] = h[xy] - v_m[x...] - v_f[y...] +
+					            δ * μ(A[xy]) / (r + δ + ψ_m[x...] + ψ_f[y...])
 				else # deterministic Shimer-Smith model
-					s[coord] = h[coord] - v_m[i...] - v_f[j...]
+					s[xy] = h[xy] - v_m[x...] - v_f[y...]
 				end
 			end
 			return s
@@ -326,13 +326,13 @@ immutable SearchMatch # object fields cannot be modified
 				μα = μ.(A) # precompute μ term
 
 				# compute residuals of non-linear system
-				for i in CartesianRange(D_m)
-					v_m[i] = (1-β) * λ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_f[j]
-					                          for j in CartesianRange(D_f)])
+				for x in CartesianRange(D_m)
+					v_m[x] = (1-β) * λ * sum([μα[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_f[y]
+					                          for y in CartesianRange(D_f)])
 				end
-				for j in CartesianRange(D_f)
-					v_f[j] = β * λ * sum([μα[i.I...,j.I...] / (r + δ + ψ_m[i] + ψ_f[j]) * u_m[i]
-					                      for i in CartesianRange(D_m)])
+				for y in CartesianRange(D_f)
+					v_f[y] = β * λ * sum([μα[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_m[x]
+					                      for x in CartesianRange(D_m)])
 				end
 
 			else # need to solve non-linear system because α no longer encodes s
@@ -497,14 +497,14 @@ function prod_array(mtypes::Vector{Vector}, ftypes::Vector{Vector}, prodfn::Func
 	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
 	lady = Vector{Float64}(length(ftypes))
 
-	for coord in CartesianRange(size(h))
-		for trt in 1:length(mtypes) # loop through traits in coord
-			gent[trt] = mtypes[trt][coord[trt]]
+	for xy in CartesianRange(size(h))
+		for trt in 1:length(mtypes) # loop through traits in xy
+			gent[trt] = mtypes[trt][xy[trt]]
 		end
-		for trt in 1:length(ftypes) # loop through traits in coord
-			lady[trt] = ftypes[trt][coord[trt+length(mtypes)]]
+		for trt in 1:length(ftypes) # loop through traits in xy
+			lady[trt] = ftypes[trt][xy[trt+length(mtypes)]]
 		end
-		h[coord] = prodfn(gent, lady)
+		h[xy] = prodfn(gent, lady)
 	end
 
 	return h
