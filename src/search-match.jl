@@ -23,7 +23,7 @@ Model selection depends which arguments are provided:
 	* `ℓ_m, ℓ_f` exogenous: population circulates between singlehood and marriage, no birth/death
 	* Death rates `ψ_m, ψ_f`, inflows `γ_m, γ_f`: population distributions `ℓ_m, ℓ_f` endogenous
 """
-immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword is `struct`
+struct SearchMatch # struct is immutable
 
 	### Parameters ###
 
@@ -392,7 +392,7 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 
 	end # constructor
 
-end # immutable
+end # struct
 
 
 ### Outer Constructors ###

@@ -17,7 +17,7 @@ As described in the manual, to [install unregistered packages][unregistered], us
 Pkg.clone("git@github.com:tobanw/MarriageMarkets.jl.git")
 ```
 
-Julia version 0.5 or higher is required (install instructions [here][version]).
+Julia version 0.6 or higher is required (install instructions [here][version]).
 
 ## Usage
 

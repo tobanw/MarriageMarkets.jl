@@ -2,7 +2,7 @@ using FactCheck
 
 # compute models in parallel: multiprocess
 addprocs(Sys.CPU_CORES) # add a worker process per core
-print_with_color(:white, "Setup:\n")
+print_with_color(:white, "Setup:\n"; bold=true)
 println("  > Using $(nprocs()-1) worker processes")
 
 using MarriageMarkets
