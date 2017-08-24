@@ -5,7 +5,7 @@ using NLsolve
 
 Construct a Choo & Siow (2006) marriage market model and solve for the equilibrium.
 """
-immutable StaticMatch
+immutable StaticMatch # for compatibility with Julia 0.5; from 0.6 the keyword is `struct`
 
 	# m/f types
 	"vector of vectors of values for each of N male traits"
@@ -69,7 +69,7 @@ immutable StaticMatch
 	end # constructor
 
 
-end # type
+end # immutable
 
 
 "Outer constructor that takes the production function to build the surplus array"

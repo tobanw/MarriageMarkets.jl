@@ -5,6 +5,7 @@ os:
 # - osx # failing due to problems with official packages
 julia:
   - release
+  - 0.5
 # - nightly # failing due to problems with official packages
 env:
   - JULIA_CPU_CORES=2 # travis vm only has 2 cores, but Julia reads the number of hardware cores

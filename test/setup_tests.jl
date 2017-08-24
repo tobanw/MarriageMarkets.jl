@@ -16,7 +16,7 @@ function static_unidim(nmen, nwom, prod)
 	menmass = ones(Float64, nmen)/nmen
 	wommass = ones(Float64, nwom)/nwom
 
-	job = @spawn StaticMatch(men, wom, menmass, wommass, prod)
+	job = @spawn MarriageMarkets.StaticMatch(men, wom, menmass, wommass, prod)
 	return job
 end
 
@@ -27,7 +27,7 @@ function search_uniform(ntypes, mmass, fmass, prod, σ)
 	lm = (mmass / ntypes) * ones(Float64, ntypes)
 	lf = (fmass / ntypes) * ones(Float64, ntypes)
 
-	job = @spawn SearchClosed(λ, δ, r, σ, Θ, Θ, lm, lf, prod)
+	job = @spawn MarriageMarkets.SearchClosed(λ, δ, r, σ, Θ, Θ, lm, lf, prod)
 	return job
 end
 
@@ -43,7 +43,7 @@ symtypes = Vector[[log(1+i) for i=1:n1], [i for i=1:n2]]
 # mass vectors: unit mass of each sex
 symdist = ones(Float64, n1, n2)/(n1*n2)
 
-symm_multi_job = @spawn StaticMatch(symtypes, symtypes, symdist, symdist, hsup)
+symm_multi_job = @spawn MarriageMarkets.StaticMatch(symtypes, symtypes, symdist, symdist, hsup)
 
 # multidimensional types: asymmetric case
 # type vectors
@@ -53,7 +53,7 @@ wom2 = Vector[[1.0, 1.2, 1.3, 1.35, 1.4], [0.0, 1.0]]
 mdist2 = ones(Float64, 3, 2)/6
 fdist2 = ones(Float64, 5, 2)/10
 
-asym_multi_job = @spawn StaticMatch(men2, wom2, mdist2, fdist2, hsup)
+asym_multi_job = @spawn MarriageMarkets.StaticMatch(men2, wom2, mdist2, fdist2, hsup)
 
 
 ### Search model - non-stochastic ###
@@ -76,4 +76,4 @@ srsymtypes = Vector[[log(1+i) for i=1:k1], [i for i=1:k2]]
 # mass vectors: unit mass of each sex
 srsymdist= ones(Float64, k1, k2)/(k1*k2)
 
-srsymm_multi_job = @spawn SearchClosed(λ, δ, r, σ, srsymtypes, srsymtypes, srsymdist, srsymdist, hsup)
+srsymm_multi_job = @spawn MarriageMarkets.SearchClosed(λ, δ, r, σ, srsymtypes, srsymtypes, srsymdist, srsymdist, hsup)

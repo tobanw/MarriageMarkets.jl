@@ -1,6 +1,6 @@
 The MarriageMarkets.jl package is licensed under the MIT "Expat" License:
 
-> Copyright (c) 2016: Toban Wiebe.
+> Copyright (c) 2017: Toban Wiebe.
 >
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the
