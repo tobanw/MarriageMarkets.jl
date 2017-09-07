@@ -64,7 +64,7 @@ symm = fetch(symm_job) # get result from worker process
 # check convergence
 msse, fsse = sse_base(symm)
 mvf, fvf = vf_base(symm)
-α_err = symm.α .- convert(Array{Float64}, (surplus_base(symm) .> 0.0))
+α_err = symm.α - convert(Array{Float64}, (surplus_base(symm) .> 0))
 
 # valid solution
 @fact msse --> roughly(zeros(msse), atol=1e-7) "market equilibrium: single men did not converge"

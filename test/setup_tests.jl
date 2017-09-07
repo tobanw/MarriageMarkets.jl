@@ -1,6 +1,6 @@
 using Distributions
 
-λ, r, δ, σ = 5.0, 0.05, 0.05, 10.0
+λ, r, δ, σ = 5, 0.05, 0.05, 10
 
 @everywhere h(x::Real, y::Real) = x*y # unidimensional production function
 @everywhere hsup(x::Vector,y::Vector) = dot(x,y)/2 # supermodular production function
@@ -21,7 +21,7 @@ function static_unidim(nmen, nwom, prod)
 end
 
 function search_uniform(ntypes, mmass, fmass, prod, σ)
-	Θ = Vector(linspace(1.0, 2.0, ntypes)) # types
+	Θ = Vector(linspace(1, 2, ntypes)) # types
 
 	# uniform population distributions
 	lm = (mmass / ntypes) * ones(Float64, ntypes)
@@ -47,8 +47,8 @@ symm_multi_job = @spawn MarriageMarkets.StaticMatch(symtypes, symtypes, symdist,
 
 # multidimensional types: asymmetric case
 # type vectors
-men2 = Vector[[1.0, 1.2, 1.3], [0.0, 1.0]]
-wom2 = Vector[[1.0, 1.2, 1.3, 1.35, 1.4], [0.0, 1.0]]
+men2 = Vector[[1, 1.2, 1.3], [0, 1]]
+wom2 = Vector[[1, 1.2, 1.3, 1.35, 1.4], [0, 1]]
 # mass vectors: unit mass of each sex
 mdist2 = ones(Float64, 3, 2)/6
 fdist2 = ones(Float64, 5, 2)/10

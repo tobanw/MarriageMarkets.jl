@@ -267,7 +267,7 @@ struct SearchMatch # struct is immutable
 		When `G` is degenerate, this yields the non-random case.
 		"""
 		function update_match(v_m::Array, v_f::Array, A::Array)
-			return 1 .- G.(-match_surplus(v_m, v_f, A)) # in deterministic case, G is indicator function
+			return 1 - G.(-match_surplus(v_m, v_f, A)) # in deterministic case, G is indicator function
 		end
 
 		"Compute average match surplus array ``s(x,y)`` from value functions."
@@ -340,7 +340,7 @@ struct SearchMatch # struct is immutable
 			end
 
 			# shrink update step size
-			return (1-step) .* A .+ step * update_match(v_m, v_f, A)
+			return (1-step) * A + step * update_match(v_m, v_f, A)
 		end
 
 		"""
@@ -362,7 +362,7 @@ struct SearchMatch # struct is immutable
 			# truncate if `u` strays out of bounds
 			if minimum([vec(um_new); vec(uf_new)]) < 0
 				warn("u negative: truncating...")
-			elseif minimum([vec(ℓ_m .- um_new); vec(ℓ_f .- uf_new)]) < 0
+			elseif minimum([vec(ℓ_m - um_new); vec(ℓ_f - uf_new)]) < 0
 				warn("u > ℓ: truncating...")
 			end
 			um_new[:] = clamp.(um_new, 0, ℓ_m)

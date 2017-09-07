@@ -21,11 +21,11 @@ function sse_stoch(M::SearchMatch)
 	
 	for i in 1:length(M.ℓ_m)
 		mres[i] = M.ℓ_m[i] - M.u_m[i] * (1 + M.λ * dot(M.α[i,:] ./
-		          (M.δ * (1 - M.α[i,:]) + M.ψ_m[i] .+ M.ψ_f), M.u_f))
+		          (M.δ * (1 - M.α[i,:]) + M.ψ_m[i] + M.ψ_f), M.u_f))
 	end
 	for j in 1:length(M.ℓ_f)
 		fres[j] = M.ℓ_f[j] - M.u_f[j] * (1 + M.λ * dot(M.α[:,j] ./
-		          (M.δ * (1 - M.α[:,j]) + M.ψ_f[j] .+ M.ψ_m), M.u_m))
+		          (M.δ * (1 - M.α[:,j]) + M.ψ_f[j] + M.ψ_m), M.u_m))
 	end
 	return mres, fres
 end
@@ -45,11 +45,11 @@ function vf_stoch(M::SearchMatch)
 
 	for i in 1:length(M.v_m)
 		mres[i] = 2*M.v_m[i] - M.λ * dot(μ.(M.α[i,:]) ./
-		                             (M.r + M.δ + M.ψ_m[i] .+ M.ψ_f), M.u_f)
+		                             (M.r + M.δ + M.ψ_m[i] + M.ψ_f), M.u_f)
 	end
 	for j in 1:length(M.v_f)
 		fres[j] = 2*M.v_f[j] - M.λ * dot(μ.(M.α[:,j]) ./
-		                             (M.r + M.δ + M.ψ_f[j] .+ M.ψ_m), M.u_m)
+		                             (M.r + M.δ + M.ψ_f[j] + M.ψ_m), M.u_m)
 	end
 
 	return mres, fres
@@ -60,7 +60,7 @@ function surplus_stoch(M::SearchMatch)
 
 	for i in 1:length(M.v_m), j in 1:length(M.v_f)
 		s[i,j] = M.h[i,j] - M.v_m[i] - M.v_f[j] + M.δ * μ(M.α[i,j]) /
-		                               (M.r + M.δ + M.ψ_m[i] .+ M.ψ_f[j])
+		                               (M.r + M.δ + M.ψ_m[i] + M.ψ_f[j])
 	end
 
 	return s
@@ -88,9 +88,9 @@ rmvf, rfvf = vf_stoch(rasym)
 @fact rmsse --> roughly(zeros(rmsse), atol=1e-7) "market equilibrium: single men did not converge"
 @fact rfsse --> roughly(zeros(rfsse), atol=1e-7) "market equilibrium: single women did not converge"
 # convergence seems to stall around 2e-5...
-@fact maximum(abs.(rmvf)) --> roughly(0.0, atol=3e-5) "matching equilibrium: man values did not converge"
-@fact maximum(abs.(rfvf)) --> roughly(0.0, atol=1e-7) "matching equilibrium: woman values did not converge"
-@fact rasym.α --> roughly(1.0 .- G.(-surplus_stoch(rasym)), atol=1e-5) "matching equilibrium: match probabilities α did not converge"
+@fact maximum(abs.(rmvf)) --> roughly(0, atol=3e-5) "matching equilibrium: man values did not converge"
+@fact maximum(abs.(rfvf)) --> roughly(0, atol=1e-7) "matching equilibrium: woman values did not converge"
+@fact rasym.α --> roughly(1 - G.(-surplus_stoch(rasym)), atol=1e-5) "matching equilibrium: match probabilities α did not converge"
 
 # sex ratio effects on singles
 @fact (rsym.u_f .≤ rasym.u_f) --> all "expected more singlehood with fewer available men"

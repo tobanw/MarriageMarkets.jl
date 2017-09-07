@@ -37,7 +37,7 @@ struct StaticMatch # struct is immutable
 	                     mdist::Array, fdist::Array, surplus::Array)
 
 		# CHECK: masses of m/f must be proper probability distro
-		if minimum(mdist) < 0.0 || minimum(fdist) < 0.0
+		if minimum(mdist) < 0 || minimum(fdist) < 0
 			error("invalid type distribution")
 		end
 
@@ -49,7 +49,7 @@ struct StaticMatch # struct is immutable
 		# compute equilibrium
 		msingle, fsingle = equilibrium(surplus, mdist, fdist)
 		matches = match_matrix(surplus, msingle, fsingle)
-		wifeshare = surplusdiv(matches, msingle, fsingle) ./ (2.0 * surplus)
+		wifeshare = surplusdiv(matches, msingle, fsingle) ./ (2 * surplus)
 
 		# TEST: masses of every match outcome must be strictly positive
 		if minimum(msingle) < -1e-5 || minimum(fsingle) < -1e-5
@@ -60,9 +60,9 @@ struct StaticMatch # struct is immutable
 		end
 
 		# numerical solution may have tiny negatives, set them to zero
-		msingle[msingle .< 0.0] = 0.0
-		fsingle[fsingle .< 0.0] = 0.0
-		matches[matches .< 0.0] = 0.0
+		msingle[msingle .< 0] = 0
+		fsingle[fsingle .< 0] = 0
+		matches[matches .< 0] = 0
 
 		# create instance
 		new(mtypes, ftypes, mdist, fdist, surplus, msingle, fsingle, matches, wifeshare)
@@ -164,8 +164,8 @@ end # match_matrix
 
 "Saferoot function to prevent DomainError in NLsolve."
 function sfrt(x::Real)
-	if x < 0.0
-		return 0.0
+	if x < 0
+		return 0
 	else
 		return sqrt(x)
 	end
