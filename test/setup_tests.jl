@@ -59,18 +59,18 @@ asym_multi_job = @spawn MarriageMarkets.StaticMatch(men2, wom2, mdist2, fdist2, 
 ### Search model - non-stochastic ###
 
 # instantiate on a worker process
-symm_job = search_uniform(20, 100, 100, h, 0)
+symm_job = search_uniform(5, 100, 100, h, 0)
 
 ### Search model - stochastic ###
 
 # symmetric case
-rsym_job = search_uniform(20, 100, 100, h, σ)
+rsym_job = search_uniform(5, 100, 100, h, σ)
 
 # asymmetric case: needs σ >~ 10 to converge
-rasym_job = search_uniform(20, 50, 100, h, σ)
+rasym_job = search_uniform(5, 50, 100, h, σ)
 
 # multidimensional types: symmetric case
-k1, k2 = 10, 2
+k1, k2 = 5, 2
 # common type vector
 srsymtypes = Vector[[log(1+i) for i=1:k1], [i for i=1:k2]]
 # mass vectors: unit mass of each sex
