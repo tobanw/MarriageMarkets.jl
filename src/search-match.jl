@@ -58,7 +58,7 @@ function sex_solve(eqnsys!::Function, v_m::Array, v_f::Array)
 end
 
 "Outer product function for: (u_m * u_f) and (ψ_m + ψ_f)."
-function outer_prod(op::Function, men::Array, wom::Array)
+function outer_op(op::Function, men::Array, wom::Array)
 	out = Array{Float64}(size(men)...,size(wom)...) # assumes 3+3 dims
 	for xy in CartesianRange(size(out))
 		x = xy.I[1:3]
@@ -235,15 +235,6 @@ struct SearchMatch # struct is immutable
 		"cdf of match-specific marital productivity shocks"
 		G(x::Real) = STOCH ? cdf(Normal(0, σ), x) : Float64(x ≥ 0) # bool as float
 
-		"""
-		Update matching function ``α(x,y)`` from ``S ≥ 0`` condition.
-
-		When `G` is degenerate, this yields the non-random case.
-		"""
-		function update_match(v_m::Array, v_f::Array, A::Array)
-			return 1 - G.(-match_surplus(v_m, v_f, A)) # in deterministic case, G is indicator function
-		end
-
 		"Compute average match surplus array ``s(x,y)`` from value functions."
 		function match_surplus(v_m::Array, v_f::Array, A::Array)
 			s = similar(h)
@@ -260,7 +251,16 @@ struct SearchMatch # struct is immutable
 			return s
 		end
 
-		#ψm_ψf = outer_prod(+, ψ_m, ψ_f) # outer sum array for efficient array operations
+		"""
+		Update matching function ``α(x,y)`` from ``S ≥ 0`` condition.
+
+		When `G` is degenerate, this yields the non-random case.
+		"""
+		function update_match(v_m::Array, v_f::Array, A::Array)
+			return 1 - G.(-match_surplus(v_m, v_f, A)) # in deterministic case, G is indicator function
+		end
+
+		#ψm_ψf = outer_op(+, ψ_m, ψ_f) # outer sum array for efficient array operations
 
 
 		### Steady-State Equilibrium Conditions ###
@@ -282,42 +282,41 @@ struct SearchMatch # struct is immutable
 		are truncated in the fixed point iteration loop.
 		"""
 		function steadystate!(u::Vector, res::Vector, α::Array)# stacked vector
-			# NOT: uses the overwritable α in the outer scope
-
-			um, uf = sex_split(u, D_m, D_f) # reconstitute arrays from stacked vector
-
-			if CRS # matching technology
-				UmUf = sqrt(sum(um) * sum(uf))
-			else # quadratic
-				UmUf = 1
-			end
 
 			# initialize arrays
 			mres = similar(ℓ_m)
 			fres = similar(ℓ_f)
 
+			u_m, u_f = sex_split(u, D_m, D_f) # reconstitute arrays from stacked vector
+
+			if CRS # matching technology
+				UmUf = sqrt(sum(u_m) * sum(u_f))
+			else # quadratic
+				UmUf = 1
+			end
+
 			if STOCH
 				# compute residuals of non-linear system
 				for x in CartesianRange(D_m)
-					mres[x] = ℓ_m[x] - um[x] * (1 + λ / UmUf
-					                            * sum(α[x.I...,y.I...] * uf[y]
-					                                  / (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
-					                                  for y in CartesianRange(D_f)))
+					mres[x] = ℓ_m[x] - u_m[x] * (1 + λ / UmUf
+					                             * sum(α[x.I...,y.I...] * u_f[y]
+					                                   / (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
+					                                   for y in CartesianRange(D_f)))
 				end
 				for y in CartesianRange(D_f)
-					fres[y] = ℓ_f[y] - uf[y] * (1 + λ / UmUf
-					                            * sum(α[x.I...,y.I...] * um[x]
-					                                  / (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
-					                                  for x in CartesianRange(D_m)))
+					fres[y] = ℓ_f[y] - u_f[y] * (1 + λ / UmUf
+					                             * sum(α[x.I...,y.I...] * u_m[x]
+					                                   / (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
+					                                   for x in CartesianRange(D_m)))
 				end
 			else # deterministic case
 				for x in CartesianRange(D_m)
-					mres[x] = (δ + ψ_m[x]) * ℓ_m[x] - um[x] * ((δ + ψ_m[x]) + λ / UmUf
-					            * sum(α[x.I...,y.I...] * uf[y] for y in CartesianRange(D_f)))
+					mres[x] = (δ + ψ_m[x]) * ℓ_m[x] - u_m[x] * ((δ + ψ_m[x]) + λ / UmUf
+					            * sum(α[x.I...,y.I...] * u_f[y] for y in CartesianRange(D_f)))
 				end
 				for y in CartesianRange(D_f)
-					fres[y] = (δ + ψ_f[y]) * ℓ_f[y] - uf[y] * ((δ + ψ_f[y]) + λ / UmUf
-					            * sum(α[x.I...,y.I...] * um[x] for x in CartesianRange(D_m)))
+					fres[y] = (δ + ψ_f[y]) * ℓ_f[y] - u_f[y] * ((δ + ψ_f[y]) + λ / UmUf
+					            * sum(α[x.I...,y.I...] * u_m[x] for x in CartesianRange(D_m)))
 				end
 			end
 
@@ -380,7 +379,7 @@ struct SearchMatch # struct is immutable
 		#v_f = 0.5 * h[1,:]
 
 		# Initialize matching array: overwritten and reused in the outer fixed point iteration
-		α = 0.5 * ones(Float64, size(h))
+		α = 0.05 * ones(Float64, size(h))
 
 		# rough initial guess for positive assortativity (one-dimensional case)
 		#for i in 1:N_m, j in 1:N_f
@@ -441,7 +440,7 @@ struct SearchMatch # struct is immutable
 
 			# nested fixed point: overwrite α to be reused as initial guess for next call
 			α[:] = compute_fixed_point(a->fp_matching_eqm(a, um, uf), α,
-			                           err_tol=inner_tol, verbose=verbose)
+			                           err_tol=inner_tol, max_iter=1000, verbose=verbose)
 
 			# steady state distributions
 			um_new, uf_new = sex_solve((xm,yf)->steadystate!(xm,yf,α), um, uf)
@@ -461,7 +460,7 @@ struct SearchMatch # struct is immutable
 		# Solve fixed point
 
 		# fast rough compututation of equilibrium by fixed point iteration
-		u_fp0 = compute_fixed_point(fp_market_eqm, 0.1*[vec(ℓ_m); vec(ℓ_f)],
+		u_fp0 = compute_fixed_point(fp_market_eqm, 0.15*[vec(ℓ_m); vec(ℓ_f)],
 		                            print_skip=10, verbose=1+verbose) # initial guess u = 0.1*ℓ
 
 		um_0, uf_0 = sex_split(u_fp0, D_m, D_f)
