@@ -40,7 +40,7 @@ using Distributions
 r = 0.05 # discount rate
 σ = 1 # variance of Normally distributed match-specific productivity shocks
 n = 50 # number of types
-Θ = Vector(linspace(0.1, 1.0, n)) # types
+Θ = Vector(range(0.1, stop=1.0, length=n)) # types
 f(x,y) = x*y # marital production function
 
 γ = ones(n) ./ n # uniform inflows

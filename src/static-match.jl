@@ -5,7 +5,7 @@ using NLsolve
 
 Construct a Choo & Siow (2006) marriage market model and solve for the equilibrium.
 """
-immutable StaticMatch # for compatibility with Julia 0.5; from 0.6 the keyword is `struct`
+struct StaticMatch
 
 	# m/f types
 	"vector of vectors of values for each of N male traits"
@@ -114,17 +114,17 @@ function equilibrium(surpl::Array, mmass::Array, fmass::Array)
 	"""
 	function redusys(surp::Array, μm0::Array, μf0::Array)
 		mres = similar(μm0) # initialize output array of residuals
-		for i in CartesianRange(size(μm0)) #men are i, women are j
+		for i in CartesianIndices(size(μm0)) #men are i, women are j
 			mres[i] = mmass[i] - μm0[i] - ( sfrt(μm0[i]) *
 			                                sum([exp(surp[i.I..., j.I...]) * sfrt(μf0[j])
-		                                         for j in CartesianRange(size(μf0))]))
+		                                         for j in CartesianIndices(size(μf0))]))
 		end #for
 
 		fres = similar(μf0) # initialize output array of residuals
-		for j in CartesianRange(size(μf0)) #women are j, men are i
+		for j in CartesianIndices(size(μf0)) #women are j, men are i
 			fres[j] = fmass[j] - μf0[j] - ( sfrt(μf0[j]) *
 			                                sum([exp(surp[i.I..., j.I...]) * sfrt(μm0[i])
-		                                         for i in CartesianRange(size(μm0))]))
+		                                         for i in CartesianIndices(size(μm0))]))
 		end #for
 
 		return mres, fres
@@ -155,7 +155,7 @@ end # equilibrium
 
 function match_matrix(surp::Array, singlemen::Array, singlewom::Array)
 	matches = similar(surp)
-	for i in CartesianRange(size(matches))
+	for i in CartesianIndices(size(matches))
 		matches[i] = exp(surp[i]) * sfrt(singlemen[i.I[1:ndims(singlemen)]...] *
 								   singlewom[i.I[ndims(singlemen)+1:end]...])
 	end # for
@@ -183,7 +183,7 @@ function generate_surplus(mtypes::Vector{Vector}, ftypes::Vector{Vector},
 	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
 	lady = Vector{Float64}(length(ftypes))
 
-	for coord in CartesianRange(size(surp))
+	for coord in CartesianIndices(size(surp))
 		for trt in 1:length(mtypes) # loop through traits in coord
 			gent[trt] = mtypes[trt][coord[trt]]
 		end
@@ -201,7 +201,7 @@ end # generate_surplus
 function surplusdiv(matches::Array, sm::Array, sw::Array)
 	share = Array{Float64}(size(matches))
 
-	for i in CartesianRange(size(share))
+	for i in CartesianIndices(size(share))
 		share[i] = log(matches[i]) - log(sw[i.I[ndims(sm)+1:end]...])
 	end # for
 
