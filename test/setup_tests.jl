@@ -21,7 +21,7 @@ function static_unidim(nmen, nwom, prod)
 end
 
 function search_uniform(ntypes, mmass, fmass, prod, σ)
-	Θ = Vector(linspace(1.0, 2.0, ntypes)) # types
+	Θ = Vector(range(1.0, stop=2.0, length=ntypes)) # types
 
 	# uniform population distributions
 	lm = (mmass / ntypes) * ones(Float64, ntypes)
