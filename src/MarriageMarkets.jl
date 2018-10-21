@@ -11,7 +11,7 @@ This includes a match-specific "love" shock to make the matching probabilistic.
 """
 module MarriageMarkets
 
-export StaticMatch, SearchMatch, SearchClosed, SearchInflow
+export StaticMatch, estimate_static_surplus, SearchMatch, SearchClosed, SearchInflow
 
 include("static-match.jl")
 include("search-match.jl")

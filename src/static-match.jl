@@ -9,9 +9,9 @@ struct StaticMatch
 
 	# m/f types
 	"vector of vectors of values for each of N male traits"
-	mtypes::Vector{Vector}
+	mtypes::Array{Array{T, 1}, 1} where T <: Real
 	"vector of vectors of values for each of L female traits"
-	ftypes::Vector{Vector}
+	ftypes::Array{Array{T, 1}, 1} where T <: Real
 
 	# m/f masses
 	"male masses: I_1 x ... x I_N"
@@ -33,11 +33,12 @@ struct StaticMatch
 	wifeshare::Array
 
 	"Inner constructor solves equilibrium and performs sanity checks"
-	function StaticMatch(mtypes::Vector{Vector}, ftypes::Vector{Vector},
-	                     mdist::Array, fdist::Array, surplus::Array)
+	function StaticMatch(mtypes::Array{Array{T, 1}, 1} where T <: Real,
+		                 ftypes::Array{Array{T, 1}, 1} where T <: Real,
+		                 mdist::Array, fdist::Array, surplus::Array)
 
 		# CHECK: masses of m/f must be proper probability distro
-		if minimum(mdist) < 0.0 || minimum(fdist) < 0.0
+		if minimum(mdist) < 0 || minimum(fdist) < 0
 			error("invalid type distribution")
 		end
 
@@ -47,143 +48,128 @@ struct StaticMatch
 		end
 
 		# compute equilibrium
-		msingle, fsingle = equilibrium(surplus, mdist, fdist)
-		matches = match_matrix(surplus, msingle, fsingle)
-		wifeshare = surplusdiv(matches, msingle, fsingle) ./ (2.0 * surplus)
+		msingle, fsingle, matches = equilibrium(surplus, mdist, fdist)
+		wifeshare = surplusdiv(matches, msingle, fsingle) ./ (2 .* surplus)
 
 		# TEST: masses of every match outcome must be strictly positive
-		if minimum(msingle) < -1e-5 || minimum(fsingle) < -1e-5
-			error("Non-positive mass of singles.")
+		negtol = 0
+		if minimum(msingle) < -negtol || minimum(fsingle) < -negtol
+			@warn "Non-positive mass of singles."
 		end
-		if minimum(matches) < -1e-5
-			error("Non-positive match mass.")
+		if minimum(matches) < -negtol
+			@warn "Non-positive match mass."
 		end
-
-		# numerical solution may have tiny negatives, set them to zero
-		msingle[msingle .< 0.0] = 0.0
-		fsingle[fsingle .< 0.0] = 0.0
-		matches[matches .< 0.0] = 0.0
 
 		# create instance
 		new(mtypes, ftypes, mdist, fdist, surplus, msingle, fsingle, matches, wifeshare)
 	end # constructor
 
 
-end # immutable
+end # struct
 
 
 "Outer constructor that takes the production function to build the surplus array"
-function StaticMatch(men::Vector{Vector}, wom::Vector{Vector},
-					 mmass::Array, fmass::Array, prodfn::Function)
-	# prodfn(man::Vector, woman::Vector)
-
+function StaticMatch(men::Array{Array{T, 1}, 1} where T <: Real, wom::Array{Array{T, 1}, 1} where T <: Real,
+	                 mmass::Array, fmass::Array, prodfn::Function)
+	# Note: prodfn(man::Vector, woman::Vector)
 	surp = generate_surplus(men, wom, mmass, fmass, prodfn)
-
-	# create instance
 	return StaticMatch(men, wom, mmass, fmass, surp)
 end
 
 "Outer constructor for one dimensional case"
 function StaticMatch(men::Vector, wom::Vector,
-					 mmass::Array, fmass::Array, prodfn::Function)
-	return StaticMatch(Vector[men], Vector[wom], mmass, fmass, prodfn)
+	                 mmass::Array, fmass::Array, prodfn::Function)
+	return StaticMatch([men,], [wom,], mmass, fmass, prodfn)
 end
 
 "Outer constructor for one dimensional males case"
-function StaticMatch(men::Vector, wom::Vector{Vector},
-					 mmass::Array, fmass::Array, prodfn::Function)
-	return StaticMatch(Vector[men], wom, mmass, fmass, prodfn)
+function StaticMatch(men::Vector, wom::Array{Array{T, 1}, 1} where T <: Real,
+	                 mmass::Array, fmass::Array, prodfn::Function)
+	return StaticMatch([men,], wom, mmass, fmass, prodfn)
 end
 
 "Outer constructor for one dimensional females case"
-function StaticMatch(men::Vector{Vector}, wom::Vector,
-					 mmass::Array, fmass::Array, prodfn::Function)
-	return StaticMatch(men, Vector[wom], mmass, fmass, prodfn)
+function StaticMatch(men::Array{Array{T, 1}, 1} where T <: Real, wom::Vector,
+	                 mmass::Array, fmass::Array, prodfn::Function)
+	return StaticMatch(men, [wom,], mmass, fmass, prodfn)
 end
 
 
 
-# helper functions
+"""
+Quasi-demand functions
 
-"Compute equilibrium shares of singles."
+Assuming that surplus is generated from equal gains on both sides.
+This is w.l.o.g. as gains and transfers cannot be separately identified.
+"""
+function demand(surp::Array, transfers::Array, mmass::Array, fmass::Array)
+
+	# un-normalized raw demands (Note: surp is defined in per-person terms)
+	m_raw_dmd = exp.(surp .- transfers)
+	f_raw_dmd = exp.(surp .+ transfers)
+
+	# total raw demands per sex, by summing over opposite sex
+	m_raw_dmd_tot = [sum(m_raw_dmd[i,j] for j in CartesianIndices(fmass)) for i in CartesianIndices(mmass)]
+	f_raw_dmd_tot = [sum(f_raw_dmd[i,j] for i in CartesianIndices(mmass)) for j in CartesianIndices(fmass)]
+
+	# solve for singles: normalization factors
+	m_sng_dmd = mmass ./ (1 .+ m_raw_dmd_tot)
+	f_sng_dmd = fmass ./ (1 .+ f_raw_dmd_tot)
+
+	# normalized demands
+	m_dmd = [m_sng_dmd[i] * m_raw_dmd[i,j] for i in CartesianIndices(mmass), j in CartesianIndices(fmass)]
+	f_dmd = [f_sng_dmd[j] * f_raw_dmd[i,j] for i in CartesianIndices(mmass), j in CartesianIndices(fmass)]
+
+	return m_sng_dmd, m_dmd, f_sng_dmd, f_dmd
+end # demand
+
+"""
+Compute equilibrium shares of singles and marriages.
+
+Solves the matching equilibrium by searching for the transfers
+(analogous to prices) which clear the market.
+"""
 function equilibrium(surpl::Array, mmass::Array, fmass::Array)
 
-	"""
-	The zero of this function gives the equilibrium shares of singles,
-	which fully determines the match matrix.
-	"""
-	function redusys(surp::Array, μm0::Array, μf0::Array)
-		mres = similar(μm0) # initialize output array of residuals
-		for i in CartesianIndices(size(μm0)) #men are i, women are j
-			mres[i] = mmass[i] - μm0[i] - ( sfrt(μm0[i]) *
-			                                sum([exp(surp[i.I..., j.I...]) * sfrt(μf0[j])
-		                                         for j in CartesianIndices(size(μf0))]))
-		end #for
-
-		fres = similar(μf0) # initialize output array of residuals
-		for j in CartesianIndices(size(μf0)) #women are j, men are i
-			fres[j] = fmass[j] - μf0[j] - ( sfrt(μf0[j]) *
-			                                sum([exp(surp[i.I..., j.I...]) * sfrt(μm0[i])
-		                                         for i in CartesianIndices(size(μm0))]))
-		end #for
-
-		return mres, fres
-	end # redusys
-
-	function sysvec!(μ0::Vector, res::Vector) # vec'd
-		# split and reshape mu
-		μm00 = reshape(μ0[1:prod(size(mmass))], size(mmass))
-		μf00 = reshape(μ0[prod(size(mmass))+1:end], size(fmass))
-
-		mresid, fresid = redusys(surpl, μm00, μf00)
-		res[:] = [vec(mresid); vec(fresid)] # concatenate into big vector
+	"Function to pass to solver to find zero."
+	function eqnsys!(res::Array, tx::Array)
+		msd, mdmd, fsd, fdmd = demand(surpl, tx, mmass, fmass)
+		res .= mdmd .- fdmd
 		return res
 	end
 
-	# initial guess of shares of singles: stacked vector
-	guess = 0.15 * [vec(mmass); vec(fmass)]
+	#initial guess of transfers/prices
+	guess = zero(surpl)
 
 	# NLsolve
-	result = nlsolve(sysvec!, guess, ftol=1e-16, factor=0.1)
+	result = nlsolve(eqnsys!, guess, ftol = 1e-16, autodiff = :forward, method = :newton)
 
-	singmen = reshape(result.zero[1:prod(size(mmass))], size(mmass))
-	singwom = reshape(result.zero[prod(size(mmass))+1:end], size(fmass))
+	if !converged(result)
+		@warn "NLsolve failed to converge to equilibrium. Solver result:"
+		@show result
+	end
 
-	return singmen, singwom
+	eqm_transfers = reshape(result.zero, size(surpl))
+	singmen, mmatches, singwom, fmatches = demand(surpl, eqm_transfers, mmass, fmass)
+	matches = (mmatches .+ fmatches) ./ 2 # average out any approximation error
+
+	return singmen, singwom, matches
 end # equilibrium
 
-
-function match_matrix(surp::Array, singlemen::Array, singlewom::Array)
-	matches = similar(surp)
-	for i in CartesianIndices(size(matches))
-		matches[i] = exp(surp[i]) * sfrt(singlemen[i.I[1:ndims(singlemen)]...] *
-								   singlewom[i.I[ndims(singlemen)+1:end]...])
-	end # for
-	return matches
-end # match_matrix
-
-"Saferoot function to prevent DomainError in NLsolve."
-function sfrt(x::Real)
-	if x < 0.0
-		return 0.0
-	else
-		return sqrt(x)
-	end
-end  # sfrt
-
 "Construct production array from function."
-function generate_surplus(mtypes::Vector{Vector}, ftypes::Vector{Vector},
+function generate_surplus(mtypes::Array{Array{T, 1}, 1} where T <: Real,
+                          ftypes::Array{Array{T, 1}, 1} where T <: Real,
                           mmass::Array, fmass::Array, prodfn::Function)
 	# get dimensions
 	Dm = [length(v) for v in mtypes]
 	Df = [length(v) for v in ftypes]
 
 	# initialize arrays
-	surp = Array{Float64}(Dm..., Df...)
-	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
-	lady = Vector{Float64}(length(ftypes))
+	surp = Array{Float64}(undef, Dm..., Df...)
+	gent = Vector{Float64}(undef, length(mtypes)) # one man's vector of traits
+	lady = Vector{Float64}(undef, length(ftypes))
 
-	for coord in CartesianIndices(size(surp))
+	for coord in CartesianIndices(surp)
 		for trt in 1:length(mtypes) # loop through traits in coord
 			gent[trt] = mtypes[trt][coord[trt]]
 		end
@@ -194,16 +180,16 @@ function generate_surplus(mtypes::Vector{Vector}, ftypes::Vector{Vector},
 	end
 
 	return surp
-
 end # generate_surplus
 
 "Wife's consumption out of surplus (aggregate share)."
 function surplusdiv(matches::Array, sm::Array, sw::Array)
-	share = Array{Float64}(size(matches))
+	return [log(matches[i,j]) - log(sw[j]) for i in CartesianIndices(sm), j in CartesianIndices(sw)]
+end # surplusdiv
 
-	for i in CartesianIndices(size(share))
-		share[i] = log(matches[i]) - log(sw[i.I[ndims(sm)+1:end]...])
-	end # for
+"Estimate the marital surplus from observed matches and singles."
+function estimate_static_surplus(matches::Array, msingle::Array, fsingle::Array)
+	return [log(matches[i,j]) - 0.5 * (log(msingle[i]) + log(fsingle[j]))
+	        for i in CartesianIndices(msingle), j in CartesianIndices(fsingle)]
+end # estimate_static_surplus
 
-	return share
-end # surplus
