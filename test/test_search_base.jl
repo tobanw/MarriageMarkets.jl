@@ -67,13 +67,13 @@ mvf, fvf = vf_base(symm)
 α_err = symm.α .- convert(Array{Float64}, (surplus_base(symm) .> 0.0))
 
 # valid solution
-@fact msse --> roughly(zeros(msse), atol=1e-7) "market equilibrium: single men did not converge"
-@fact fsse --> roughly(zeros(fsse), atol=1e-7) "market equilibrium: single women did not converge"
-@fact mvf --> roughly(zeros(mvf), atol=1e-7) "matching equilibrium: man values did not converge"
-@fact fvf --> roughly(zeros(fvf), atol=1e-7) "matching equilibrium: woman values did not converge"
-@fact α_err --> zeros(α_err) "matching equilibrium: match probabilities α did not converge"
+@test msse ≈ zero(msse) atol=1e-7 #market equilibrium: single men did not converge
+@test fsse ≈ zero(fsse) atol=1e-7 #market equilibrium: single women did not converge
+@test mvf ≈ zero(mvf) atol=1e-7 #matching equilibrium: man values did not converge
+@test fvf ≈ zero(fvf) atol=1e-7 #matching equilibrium: woman values did not converge
+@test α_err == zero(α_err) #matching equilibrium: match probabilities α did not converge
 
 # symmetry
-@fact symm.v_m --> roughly(symm.v_f) "expected symmetry of values"
-@fact symm.u_m --> roughly(symm.u_f) "expected symmetry of singles"
-@fact symm.α --> roughly(symm.α') "expected symmetry of matching"
+@test symm.v_m ≈ symm.v_f #expected symmetry of values
+@test symm.u_m ≈ symm.u_f #expected symmetry of singles
+@test symm.α ≈ symm.α' #expected symmetry of matching

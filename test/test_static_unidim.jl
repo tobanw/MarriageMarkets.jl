@@ -1,15 +1,32 @@
-# verify that super/sub-modularity of production implies positive/negative assortative matching.
-
 # get results from worker processes
 pam = fetch(pam_job)
 nam = fetch(nam_job)
 
+pam_implied_pop_m, pam_implied_pop_f = eqm_consistency(pam.surplus, pam.msingle, pam.fsingle)
+nam_implied_pop_m, nam_implied_pop_f = eqm_consistency(nam.surplus, nam.msingle, nam.fsingle)
+
+# ensure convergence to valid equilibrium
+@testset "validity of equilibrium population measures" begin
+	match_tol = 1e-12
+	@test pam.matches ≈ match_matrix(pam.surplus, pam.msingle, pam.fsingle) atol = match_tol
+	@test pam_implied_pop_m ≈ pam.mdist atol = match_tol
+	@test pam_implied_pop_f ≈ pam.fdist atol = match_tol
+
+	@test nam.matches ≈ match_matrix(nam.surplus, nam.msingle, nam.fsingle) atol = match_tol
+	@test nam_implied_pop_m ≈ nam.mdist atol = match_tol
+	@test nam_implied_pop_f ≈ nam.fdist atol = match_tol
+end
+
+# verify that super/sub-modularity of production implies positive/negative assortative matching.
 # sum of diag corners greater than sum of anti-diag corners
-@fact pam.matches[1,1] + pam.matches[end,end] -->
-      greater_than(pam.matches[1,end] + pam.matches[end,1]) "expected positive assortativity"
-@fact nam.matches[1,1] + nam.matches[end,end] -->
-      less_than(nam.matches[1,end] + nam.matches[end,1]) "expected negative assortativity"
+@testset "positive and negative assortativity" begin
+	@test pam.matches[1,1] + pam.matches[end,end] > pam.matches[1,end] + pam.matches[end,1]
+	@test nam.matches[1,1] + nam.matches[end,end] < nam.matches[1,end] + nam.matches[end,1]
+end
 
 # symmetry
-@fact pam.matches --> roughly(pam.matches') "expected symmetry of matches"
-@fact pam.msingle --> roughly(pam.fsingle) "expected symmetry of singles"
+@testset "symmetry of matches and singles" begin
+	@test pam.matches ≈ pam.matches'
+	@test pam.msingle ≈ pam.fsingle
+end
+

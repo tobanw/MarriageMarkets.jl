@@ -1,8 +1,9 @@
-using FactCheck
+using Test
+using Distributed
 
 # compute models in parallel: multiprocess
-addprocs(Sys.CPU_CORES) # add a worker process per core
-print_with_color(:white, "Setup:\n")
+addprocs(Sys.CPU_THREADS) # add a worker process per core
+printstyled("Setup:\n", color=:white)
 println("  > Using $(nprocs()-1) worker processes")
 
 using MarriageMarkets
@@ -10,28 +11,35 @@ using MarriageMarkets
 println("  > Computing models...")
 include("setup_tests.jl") # multiprocess model computations
 
-facts("Static model:") do
-	context("One-dimensional types") do
-		include("test_static_unidim.jl")
-	end
+@testset "MarriageMarkets" begin
 
-	context("Multidimensional types") do
-		include("test_static_multidim.jl")
-	end
-end #facts
+	@testset "Static model" begin
 
-facts("Search model:") do
-	context("Basic Shimer-Smith model") do
-		include("test_search_base.jl")
-	end
+		@testset "Unidimensional model" begin
+			include("test_static_unidim.jl")
+		end
 
-	context("Stochastic model") do
-		include("test_search_stoch.jl")
-	end
+		@testset "Multidimensional model" begin
+			include("test_static_multidim.jl")
+		end
 
-	context("Multidimensional types") do
-		include("test_search_multidim.jl")
-	end
-end #facts
+	end # static model
 
-exitstatus() # for CI, makes this code fail if a test fails
+
+	@testset "Search model" begin
+
+		@testset "Basic Shimer-Smith model" begin
+			include("test_search_base.jl")
+		end
+
+		@testset "Stochastic model" begin
+			include("test_search_stoch.jl")
+		end
+
+		@testset "Multidimensional types" begin
+			include("test_search_multidim.jl")
+		end
+
+	end # search model
+
+end # MarriageMarkets

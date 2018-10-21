@@ -23,7 +23,7 @@ Model selection depends which arguments are provided:
 	* `ℓ_m, ℓ_f` exogenous: population circulates between singlehood and marriage, no birth/death
 	* Death rates `ψ_m, ψ_f`, inflows `γ_m, γ_f`: population distributions `ℓ_m, ℓ_f` endogenous
 """
-immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword is `struct`
+struct SearchMatch
 
 	### Parameters ###
 
@@ -40,9 +40,9 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 
 	### Exogenous objects ###
 	"male type space"
-	θ_m::Vector{Vector}
+	θ_m::Array{Array{T, 1}, 1} where T <: Real
 	"female type space"
-	θ_f::Vector{Vector}
+	θ_f::Array{Array{T, 1}, 1} where T <: Real
 	"male inflows by type"
 	γ_m::Array
 	"female inflows by type"
@@ -87,7 +87,7 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 	It is not meant to be called directly -- instead, outer constructors should call this
 	constructor with a full set of arguments, using zero values for unwanted components.
 	"""
-	function SearchMatch(λ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
+	function SearchMatch(λ::Real, δ::Real, r::Real, σ::Real, θ_m::Array{Array{T, 1}, 1} where T <: Real, θ_f::Array{Array{T, 1}, 1} where T <: Real,
 	                     γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
 	                     ℓ_m::Array, ℓ_f::Array, h::Array;
 	                     β=0.5, verbose=false, step=0.2)
@@ -95,8 +95,8 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 		### Model Selection ###
 
 		# dimensions of type spaces
-		D_m = ([length(v) for v in θ_m]...)
-		D_f = ([length(v) for v in θ_f]...)
+		D_m = ([length(v) for v in θ_m]...,)
+		D_f = ([length(v) for v in θ_f]...,)
 
 		# total numbers of types
 		N_m = prod(D_m)
@@ -187,38 +187,28 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 		The constraints ``0 ≤ u ≤ ℓ`` are not enforced here, but the outputs of this function
 		are truncated in the fixed point iteration loop.
 		"""
-		function steadystate!(u::Vector, res::Vector)# stacked vector
+		function steadystate!(res::Vector, u::Vector)# stacked vector
 			# uses the overwritable α in the outer scope
 
 			um, uf = sex_split(u, D_m, D_f) # reconstitute arrays from stacked vector
 
-			# initialize arrays
-			mres = similar(ℓ_m)
-			fres = similar(ℓ_f)
-
 			if STOCH
 				# compute residuals of non-linear system
-				for x in CartesianRange(D_m)
-					mres[x] = ℓ_m[x] - um[x] * (1 + λ *
-					           sum([α[x.I...,y.I...] * uf[y] / 
-					                 (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
-					                for y in CartesianRange(D_f)]))
-				end
-				for y in CartesianRange(D_f)
-					fres[y] = ℓ_f[y] - uf[y] * (1 + λ *
-					           sum([α[x.I...,y.I...] * um[x] /
-					                 (δ * (1 - α[x.I...,y.I...]) + ψ_m[x] + ψ_f[y])
-					                for x in CartesianRange(D_m)]))
-				end
+				mres = [ℓ_m[x] - um[x] * (1 + λ * sum(α[x,y] * uf[y] / (δ * (1 - α[x,y]) + ψ_m[x] + ψ_f[y])
+				                                      for y in CartesianIndices(D_f)))
+				        for x in CartesianIndices(D_m)]
+				
+				fres = [ℓ_f[y] - uf[y] * (1 + λ * sum(α[x,y] * um[x] / (δ * (1 - α[x,y]) + ψ_m[x] + ψ_f[y])
+				                                      for x in CartesianIndices(D_m)))
+				        for y in CartesianIndices(D_f)]
 			else # deterministic case
-				for x in CartesianRange(D_m)
-					mres[x] = (δ + ψ_m[x]) * ℓ_m[x] - um[x] * ((δ + ψ_m[x]) + λ *
-					            sum([α[x.I...,y.I...] * uf[y] for y in CartesianRange(D_f)]))
-				end
-				for y in CartesianRange(D_f)
-					fres[y] = (δ + ψ_f[y]) * ℓ_f[y] - uf[y] * ((δ + ψ_f[y]) + λ *
-					            sum([α[x.I...,y.I...] * um[x] for x in CartesianRange(D_m)]))
-				end
+				mres = [(δ + ψ_m[x]) * ℓ_m[x] - um[x] *
+				        ((δ + ψ_m[x]) + λ * sum([α[x,y] * uf[y] for y in CartesianIndices(D_f)]))
+				        for x in CartesianIndices(D_m)]
+				
+				fres = [(δ + ψ_f[y]) * ℓ_f[y] - uf[y] *
+				        ((δ + ψ_f[y]) + λ * sum([α[x,y] * um[x] for x in CartesianIndices(D_m)]))
+				        for y in CartesianIndices(D_f)]
 			end
 
 			res[:] = [vec(mres); vec(fres)] # concatenate into stacked vector
@@ -239,24 +229,17 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 		function valuefunc_base!(v::Vector, res::Vector, u_m::Array, u_f::Array, A::Array)
 			vm, vf = sex_split(v, D_m, D_f) # reconstitute arrays from stacked vector
 
-			# initialize arrays
-			mres = similar(ℓ_m)
-			fres = similar(ℓ_f)
-
 			# precompute the fixed weights
 			αs = A .* match_surplus(vm, vf, A)
 
 			# compute residuals of non-linear system
-			for x in CartesianRange(D_m)
-				mres[x] = vm[x] - (1-β) * λ *
-				           sum([αs[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_f[y]
-				                for y in CartesianRange(D_f)])
-			end
-			for y in CartesianRange(D_f)
-				fres[y] = vf[y] - β * λ *
-				           sum([αs[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_m[x]
-				                for x in CartesianRange(D_m)])
-			end
+			mres = [vm[x] - (1-β) * λ * sum(αs[x,y] / (r + δ + ψ_m[x] + ψ_f[y]) * u_f[y]
+			                                for y in CartesianIndices(D_f))
+			        for x in CartesianIndices(D_m)]
+			
+			fres = [vf[y] - β * λ * sum(αs[x,y] / (r + δ + ψ_m[x] + ψ_f[y]) * u_m[x]
+			                            for x in CartesianIndices(D_m))
+			        for y in CartesianIndices(D_f)]
 
 			res[:] = [vec(mres); vec(fres)] # concatenate into stacked vector
 		end # valuefunc_base!
@@ -272,16 +255,12 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 
 		"Compute average match surplus array ``s(x,y)`` from value functions."
 		function match_surplus(v_m::Array, v_f::Array, A::Array)
-			s = similar(h)
-			for xy in CartesianRange(size(s))
-				x = xy.I[1:length(D_m)]
-				y = xy.I[length(D_m)+1:end]
-				if STOCH
-					s[xy] = h[xy] - v_m[x...] - v_f[y...] +
-					            δ * μ(A[xy]) / (r + δ + ψ_m[x...] + ψ_f[y...])
-				else # deterministic Shimer-Smith model
-					s[xy] = h[xy] - v_m[x...] - v_f[y...]
-				end
+			if STOCH
+				s = [h[x,y] - v_m[x] - v_f[y] + δ * μ(A[x,y]) / (r + δ + ψ_m[x] + ψ_f[y])
+				     for x in CartesianIndices(v_m), y in CartesianIndices(v_f)]
+			else # deterministic Shimer-Smith model
+				s = [h[x,y] - v_m[x] - v_f[y]
+				     for x in CartesianIndices(v_m), y in CartesianIndices(v_f)]
 			end
 			return s
 		end
@@ -326,17 +305,17 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 				μα = μ.(A) # precompute μ term
 
 				# compute residuals of non-linear system
-				for x in CartesianRange(D_m)
-					v_m[x] = (1-β) * λ * sum([μα[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_f[y]
-					                          for y in CartesianRange(D_f)])
+				for x in CartesianIndices(D_m)
+					v_m[x] = (1-β) * λ * sum([μα[x,y] / (r + δ + ψ_m[x] + ψ_f[y]) * u_f[y]
+					                          for y in CartesianIndices(D_f)])
 				end
-				for y in CartesianRange(D_f)
-					v_f[y] = β * λ * sum([μα[x.I...,y.I...] / (r + δ + ψ_m[x] + ψ_f[y]) * u_m[x]
-					                      for x in CartesianRange(D_m)])
+				for y in CartesianIndices(D_f)
+					v_f[y] = β * λ * sum([μα[x,y] / (r + δ + ψ_m[x] + ψ_f[y]) * u_m[x]
+					                      for x in CartesianIndices(D_m)])
 				end
 
 			else # need to solve non-linear system because α no longer encodes s
-				v_m[:], v_f[:] = sex_solve((x,res)->valuefunc_base!(x, res, u_m, u_f, A), v_m, v_f)
+				v_m[:], v_f[:] = sex_solve((res,x)->valuefunc_base!(x, res, u_m, u_f, A), v_m, v_f)
 			end
 
 			# shrink update step size
@@ -361,9 +340,9 @@ immutable SearchMatch # for compatibility with Julia 0.5; from 0.6 the keyword i
 
 			# truncate if `u` strays out of bounds
 			if minimum([vec(um_new); vec(uf_new)]) < 0
-				warn("u negative: truncating...")
+				@warn "u negative: truncating..."
 			elseif minimum([vec(ℓ_m .- um_new); vec(ℓ_f .- uf_new)]) < 0
-				warn("u > ℓ: truncating...")
+				@warn "u > ℓ: truncating..."
 			end
 			um_new[:] = clamp.(um_new, 0, ℓ_m)
 			uf_new[:] = clamp.(uf_new, 0, ℓ_f)
@@ -403,10 +382,12 @@ end # immutable
 """
 Outer constructor that constructs the production array from the types and production function.
 """
-function SearchMatch(λ::Real, δ::Real, r::Real, σ::Real, θ_m::Vector{Vector}, θ_f::Vector{Vector},
-					 γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
-					 ℓ_m::Array, ℓ_f::Array, g::Function;
-					 β=0.5, verbose=false, step=0.2)
+function SearchMatch(λ::Real, δ::Real, r::Real, σ::Real,
+                     θ_m::Array{Array{T, 1}, 1} where T <: Real,
+                     θ_f::Array{Array{T, 1}, 1} where T <: Real,
+                     γ_m::Array, γ_f::Array, ψ_m::Array, ψ_f::Array,
+                     ℓ_m::Array, ℓ_f::Array, g::Function;
+                     β=0.5, verbose=false, step=0.2)
 
 	# construct production array
 	h = prod_array(θ_m, θ_f, g)
@@ -424,13 +405,15 @@ end
 Constructs marriage market equilibrium of closed-system model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchClosed(λ::Real, δ::Real, r::Real, σ::Real,
-					  θ_m::Vector{Vector}, θ_f::Vector{Vector}, ℓ_m::Array, ℓ_f::Array,
+                      θ_m::Array{Array{T, 1}, 1} where T <: Real,
+                      θ_f::Array{Array{T, 1}, 1} where T <: Real,
+                      ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
-	ψ_m = zeros(ℓ_m)
-	ψ_f = zeros(ℓ_f)
-	γ_m = zeros(ℓ_m)
-	γ_f = zeros(ℓ_f)
+	ψ_m = zero(ℓ_m)
+	ψ_f = zero(ℓ_f)
+	γ_m = zero(ℓ_m)
+	γ_f = zero(ℓ_f)
 
 	return SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
 	                   β=β, verbose=verbose, step=step)
@@ -442,12 +425,12 @@ end
 Method for one-dimensional types.
 """
 function SearchClosed(λ::Real, δ::Real, r::Real, σ::Real,
-					  θ_m::Vector, θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
+                      θ_m::Vector, θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchClosed(λ, δ, r, σ, Vector[θ_m], Vector[θ_f], ℓ_m, ℓ_f, gg;
+	return SearchClosed(λ, δ, r, σ, [θ_m,], [θ_f,], ℓ_m, ℓ_f, gg;
 	                    β=β, verbose=verbose, step=step)
 end
 
@@ -457,12 +440,12 @@ end
 Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchInflow(λ::Real, δ::Real, r::Real, σ::Real,
-					  θ_m::Tuple, θ_f::Tuple, γ_m::Array, γ_f::Array,
+                      θ_m::Tuple, θ_f::Tuple, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
-					  β=0.5, verbose=false, step=0.2)
+                      β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
-	ℓ_m = zeros(γ_m)
-	ℓ_f = zeros(γ_f)
+	ℓ_m = zero(γ_m)
+	ℓ_f = zero(γ_f)
 
 	return SearchMatch(λ, δ, r, σ, θ_m, θ_f, γ_m, γ_f, ψ_m, ψ_f, ℓ_m, ℓ_f, g;
 	                   β=β, verbose=verbose, step=step)
@@ -474,30 +457,32 @@ end
 Method for one-dimensional types.
 """
 function SearchInflow(λ::Real, δ::Real, r::Real, σ::Real,
-					  θ_m::Vector, θ_f::Vector, γ_m::Array, γ_f::Array,
+                      θ_m::Vector, θ_f::Vector, γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
-					  β=0.5, verbose=false, step=0.2)
+                      β=0.5, verbose=false, step=0.2)
 	# augment production function
 	gg(x::Array, y::Array) = g(x[1], y[1])
 
-	return SearchInflow(λ, δ, r, σ, Vector[θ_m], Vector[θ_f], γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
+	return SearchInflow(λ, δ, r, σ, [θ_m,], [θ_f,], γ_m, γ_f, ψ_m, ψ_f, gg; β=β, verbose=verbose, step=step)
 end
 
 
 ### Helper functions ###
 
 "Construct production array from function."
-function prod_array(mtypes::Vector{Vector}, ftypes::Vector{Vector}, prodfn::Function)
+function prod_array(mtypes::Array{Array{T, 1}, 1} where T <: Real,
+                    ftypes::Array{Array{T, 1}, 1} where T <: Real,
+                    prodfn::Function)
 	# get dimensions
 	Dm = [length(v) for v in mtypes]
 	Df = [length(v) for v in ftypes]
 
 	# initialize arrays
-	h = Array{Float64}(Dm..., Df...)
-	gent = Vector{Float64}(length(mtypes)) # one man's vector of traits
-	lady = Vector{Float64}(length(ftypes))
+	h = Array{Float64}(undef, (Dm..., Df...))
+	gent = Vector{Float64}(undef, length(mtypes)) # one man's vector of traits
+	lady = Vector{Float64}(undef, length(ftypes))
 
-	for xy in CartesianRange(size(h))
+	for xy in CartesianIndices(h)
 		for trt in 1:length(mtypes) # loop through traits in xy
 			gent[trt] = mtypes[trt][xy[trt]]
 		end

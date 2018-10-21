@@ -11,13 +11,13 @@ The `MarriageMarkets` package currently provides two marriage market models as J
 
 ## Installation
 
-As described in the manual, to [install unregistered packages][unregistered], use `Pkg.clone()` with the repository url:
+As described in the manual, to [install unregistered packages][unregistered], enter `pkg` mode in the REPL (by pressing `]`) and add the repository url:
 
 ```julia
-Pkg.clone("git@github.com:tobanw/MarriageMarkets.jl.git")
+(v1.0) pkg> add https://github.com/tobanw/MarriageMarkets.jl
 ```
 
-Julia version 0.5 or higher is required (install instructions [here][version]).
+Julia version 1.0 or higher is required (install instructions [here][version]).
 
 ## Usage
 
@@ -34,13 +34,12 @@ I use [Gadfly][gadfly] to plot the match probability conditional on meeting.
 ```julia
 using MarriageMarkets
 using Gadfly
-using Distributions
 
 λ, δ = 500.0, 0.05 # arrival rates of meetings and divorce shocks
 r = 0.05 # discount rate
 σ = 1 # variance of Normally distributed match-specific productivity shocks
 n = 50 # number of types
-Θ = Vector(linspace(0.1, 1.0, n)) # types
+Θ = Vector(range(0.1, stop=1.0, length=n)) # types
 f(x,y) = x*y # marital production function
 
 γ = ones(n) ./ n # uniform inflows
@@ -58,9 +57,9 @@ The saddle shape indicates positive assortative matching, as expected, due to th
 
 ## Testing
 
-In a Julia session, run `Pkg.test("MarriageMarkets")`.
+In a Julia REPL session, enter `pkg` mode and run `test MarriageMarkets`.
 
 
-[unregistered]:http://docs.julialang.org/en/release-0.5/manual/packages/#installing-unregistered-packages
+[unregistered]:https://docs.julialang.org/en/latest/stdlib/Pkg/#Adding-unregistered-packages-1
 [version]:http://julialang.org/downloads/platform.html
 [gadfly]:http://gadflyjl.org/stable/
