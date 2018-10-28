@@ -440,7 +440,9 @@ end
 Constructs marriage market equilibrium of inflow and death model with match-specific productivity shocks and production function ``g(x,y)``.
 """
 function SearchInflow(λ::Real, δ::Real, r::Real, σ::Real,
-                      θ_m::Tuple, θ_f::Tuple, γ_m::Array, γ_f::Array,
+                      θ_m::Array{Array{T, 1}, 1} where T <: Real,
+                      θ_f::Array{Array{T, 1}, 1} where T <: Real,
+                      γ_m::Array, γ_f::Array,
                       ψ_m::Array, ψ_f::Array, g::Function;
                       β=0.5, verbose=false, step=0.2)
 	# irrelevant arguments to pass as zeros
