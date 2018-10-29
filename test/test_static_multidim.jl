@@ -1,9 +1,5 @@
 # uses variables from setup_tests.jl
 
-mgmkt = fetch(symm_multi_job)
-
-mgmkt2 = fetch(asym_multi_job)
-
 sym_implied_pop_m, sym_implied_pop_f = eqm_consistency(mgmkt.surplus, mgmkt.msingle, mgmkt.fsingle)
 asym_implied_pop_m, asym_implied_pop_f = eqm_consistency(mgmkt2.surplus, mgmkt2.msingle, mgmkt2.fsingle)
 

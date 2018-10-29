@@ -1,14 +1,6 @@
 using Test
-using Distributed
-
-# compute models in parallel: multiprocess
-addprocs(Sys.CPU_THREADS) # add a worker process per core
-printstyled("Setup:\n", color=:white)
-println("  > Using $(nprocs()-1) worker processes")
-
 using MarriageMarkets
 
-println("  > Computing models...")
 include("setup_tests.jl") # multiprocess model computations
 
 @testset "MarriageMarkets" begin

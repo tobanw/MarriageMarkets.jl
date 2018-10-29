@@ -59,8 +59,6 @@ end
 
 ### Tests: basic Shimer-Smith model ###
 
-symm = fetch(symm_job) # get result from worker process
-
 # check convergence
 msse, fsse = sse_base(symm)
 mvf, fvf = vf_base(symm)

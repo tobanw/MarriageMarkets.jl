@@ -70,7 +70,6 @@ end
 ### Tests: endogenous divorce model ###
 
 # symmetric case
-rsym = fetch(rsym_job) # get result from worker process
 
 @test rsym.v_m ≈ rsym.v_f #expected symmetry of values
 @test rsym.u_m ≈ rsym.u_f #expected symmetry of singles
@@ -78,7 +77,6 @@ rsym = fetch(rsym_job) # get result from worker process
 
 
 # asymmetric case
-rasym = fetch(rasym_job) # get result from worker process
 
 # check convergence
 rmsse, rfsse = sse_stoch(rasym)

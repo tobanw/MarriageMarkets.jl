@@ -1,7 +1,5 @@
 # uses variables from setup_tests.jl
 
-srmgmkt = fetch(srsymm_multi_job)
-
 # check symmetry
 @test srmgmkt.u_m ≈ srmgmkt.u_f #expected symmetry of singles
 

@@ -1,7 +1,3 @@
-# get results from worker processes
-pam = fetch(pam_job)
-nam = fetch(nam_job)
-
 pam_implied_pop_m, pam_implied_pop_f = eqm_consistency(pam.surplus, pam.msingle, pam.fsingle)
 nam_implied_pop_m, nam_implied_pop_f = eqm_consistency(nam.surplus, nam.msingle, nam.fsingle)
 
