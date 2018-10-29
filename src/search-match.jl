@@ -428,7 +428,7 @@ function SearchClosed(λ::Real, δ::Real, r::Real, σ::Real,
                       θ_m::Vector, θ_f::Vector, ℓ_m::Array, ℓ_f::Array,
                       g::Function; β=0.5, verbose=false, step=0.2)
 	# augment production function
-	gg(x::Array, y::Array) = g(x[1], y[1])
+	gg(x::Vector, y::Vector) = g(x[1], y[1])
 
 	return SearchClosed(λ, δ, r, σ, [θ_m,], [θ_f,], ℓ_m, ℓ_f, gg;
 	                    β=β, verbose=verbose, step=step)

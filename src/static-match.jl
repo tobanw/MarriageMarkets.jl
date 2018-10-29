@@ -79,7 +79,9 @@ end
 "Outer constructor for one dimensional case"
 function StaticMatch(men::Vector, wom::Vector,
 	                 mmass::Array, fmass::Array, prodfn::Function)
-	return StaticMatch([men,], [wom,], mmass, fmass, prodfn)
+	# augment production function
+	g(x::Vector, y::Vector) = prodfn(x[1], y[1])
+	return StaticMatch([men,], [wom,], mmass, fmass, g)
 end
 
 "Outer constructor for one dimensional males case"
