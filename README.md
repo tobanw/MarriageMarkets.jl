@@ -12,10 +12,10 @@ The `MarriageMarkets` package currently provides two marriage market models as J
 
 ## Installation
 
-As described in the manual, to [install unregistered packages][unregistered], enter `pkg` mode in the REPL (by pressing `]`) and add the repository url:
+In a Julia REPL, enter `pkg` mode (by pressing `]`) and run:
 
 ```julia
-(v1.0) pkg> add https://github.com/tobanw/MarriageMarkets.jl
+(v1.0) pkg> add MarriageMarkets
 ```
 
 Julia version 1.0 or higher is required (installation instructions [here][version]).
